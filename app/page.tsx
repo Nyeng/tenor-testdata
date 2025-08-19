@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
-import { Building2, Users, User, Settings, CheckCircle, AlertCircle } from "lucide-react"
+import { Building2, Users, User, Settings, Search, CheckCircle2 } from "lucide-react"
 
 type Role = "forretningsfoerer" | "revisor" | "regnskapsfoerere"
 
@@ -119,185 +119,291 @@ export default function TestDataInterface() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 p-6">
-      <div className="max-w-4xl mx-auto space-y-8">
-        {/* Header */}
-        <div className="text-center space-y-4">
-          <h1 className="text-4xl font-bold text-slate-900">Testdata Interface</h1>
-          <p className="text-lg text-slate-600">Velg rolle og hent testdata for Maskinporten-integrasjon</p>
+    <div className="min-h-screen bg-muted">
+      <header className="border-b bg-background shadow-sm">
+        <div className="container mx-auto px-6 py-8">
+          <div className="text-center space-y-4">
+            <h1 className="text-4xl font-semibold text-foreground">Testdatasøk for Team Autorisasjon</h1>
+            <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
+              Hent testdata for forhåndsdefinert ER-Rolle
+            </p>
+          </div>
         </div>
+      </header>
 
-        <Card className={`border-2 ${envVarsReady ? "border-green-200 bg-green-50" : "border-amber-200 bg-amber-50"}`}>
-          <CardHeader>
-            <CardTitle className={`flex items-center gap-2 ${envVarsReady ? "text-green-800" : "text-amber-800"}`}>
-              {envVarsReady ? (
-                <CheckCircle className="h-5 w-5 text-green-600" />
-              ) : (
-                <AlertCircle className="h-5 w-5 text-amber-600" />
-              )}
-              Maskinporten Integrasjon
-            </CardTitle>
-            <CardDescription className={envVarsReady ? "text-green-700" : "text-amber-700"}>
-              {envVarsReady
-                ? "Maskinporten-integrasjon er konfigurert og klar til bruk"
-                : "Maskinporten miljøvariabler må konfigureres"}
-            </CardDescription>
-          </CardHeader>
-          {!envVarsReady && (
-            <CardContent>
-              <div className="p-4 bg-amber-100 rounded-lg">
-                <p className="text-sm text-amber-800 font-medium mb-2">Påkrevde miljøvariabler:</p>
-                <ul className="text-sm text-amber-700 space-y-1 list-disc list-inside">
-                  <li>
-                    <code>MACHINEPORTEN_KID</code> - Key ID for JWT signering
-                  </li>
-                  <li>
-                    <code>ENCODED_JWK</code> - Base64-kodet JWK private key
-                  </li>
-                  <li>
-                    <code>MACHINEPORTEN_CLIENT_ID</code> - Maskinporten klient-ID
-                  </li>
-                </ul>
-              </div>
-            </CardContent>
-          )}
-        </Card>
+      <main className="container mx-auto px-6 py-8">
+        <div className="max-w-4xl mx-auto space-y-8">
+          <section aria-labelledby="role-selection-title">
+            <Card className="border shadow-sm rounded-xl">
+              <CardHeader className="pb-6">
+                <CardTitle id="role-selection-title" className="flex items-center gap-3">
+                  <div className="p-2 bg-primary/10 rounded-xl">
+                    <User className="h-5 w-5 text-primary" />
+                  </div>
+                  Velg rolle
+                </CardTitle>
+                <CardDescription className="text-muted-foreground">
+                  Velg hvilken type organisasjon du vil hente testdata for
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  {(Object.keys(roleConfig) as Role[]).map((role) => {
+                    const config = roleConfig[role]
+                    const Icon = config.icon
+                    const isSelected = selectedRole === role
 
-        {/* Role Selection */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <User className="h-5 w-5" />
-              Velg rolle
-            </CardTitle>
-            <CardDescription>Velg hvilken type organisasjon du vil hente testdata for</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              {(Object.keys(roleConfig) as Role[]).map((role) => {
-                const config = roleConfig[role]
-                const Icon = config.icon
-                const isSelected = selectedRole === role
-
-                return (
-                  <Card
-                    key={role}
-                    className={`cursor-pointer transition-all duration-200 hover:shadow-md ${
-                      isSelected ? "ring-2 ring-blue-500 bg-blue-50" : "hover:bg-slate-50"
-                    }`}
-                    onClick={() => setSelectedRole(role)}
-                  >
-                    <CardContent className="p-6 text-center space-y-3">
-                      <div
-                        className={`w-12 h-12 rounded-full ${config.color} flex items-center justify-center mx-auto`}
+                    return (
+                      <Card
+                        key={role}
+                        className={`cursor-pointer transition-all duration-200 hover:shadow-md rounded-xl ${
+                          isSelected
+                            ? "ring-2 ring-primary bg-primary/5 shadow-md"
+                            : "hover:bg-muted/50 border hover:border-primary/30"
+                        }`}
+                        onClick={() => setSelectedRole(role)}
+                        role="button"
+                        tabIndex={0}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" || e.key === " ") {
+                            e.preventDefault()
+                            setSelectedRole(role)
+                          }
+                        }}
+                        aria-pressed={isSelected}
                       >
-                        <Icon className="h-6 w-6 text-white" />
-                      </div>
-                      <h3 className="font-semibold text-slate-900">{config.name}</h3>
-                      <p className="text-sm text-slate-600">{config.description}</p>
-                    </CardContent>
-                  </Card>
-                )
-              })}
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Configuration */}
-        {selectedRole && (
-          <Card>
-            <CardHeader>
-              <CardTitle>Konfigurering</CardTitle>
-              <CardDescription>Angi antall klienter som skal hentes</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="flex items-center gap-4">
-                <Label htmlFor="clientCount" className="text-sm font-medium">
-                  Antall klienter:
-                </Label>
-                <Input
-                  id="clientCount"
-                  type="number"
-                  min="1"
-                  max="20"
-                  value={clientCount}
-                  onChange={(e) => setClientCount(Number.parseInt(e.target.value) || 1)}
-                  className="w-24"
-                />
-              </div>
-
-              <Button onClick={handleFetchTestData} disabled={loading || !envVarsReady} className="w-full">
-                {loading ? "Henter testdata..." : !envVarsReady ? "Miljøvariabler må settes først" : "Hent testdata"}
-              </Button>
-
-              {error && (
-                <div className="p-3 bg-red-50 border border-red-200 rounded-md">
-                  <p className="text-sm text-red-600">{error}</p>
+                        <CardContent className="p-6 text-center space-y-4">
+                          <div className="relative">
+                            <div
+                              className={`w-12 h-12 rounded-xl ${
+                                role === "forretningsfoerer"
+                                  ? "bg-secondary"
+                                  : role === "revisor"
+                                    ? "bg-primary"
+                                    : "bg-secondary"
+                              } flex items-center justify-center mx-auto`}
+                            >
+                              <Icon className="h-6 w-6 text-white" />
+                            </div>
+                            {isSelected && (
+                              <div className="absolute -top-1 -right-1 bg-primary rounded-full p-1">
+                                <CheckCircle2 className="h-3 w-3 text-primary-foreground" />
+                              </div>
+                            )}
+                          </div>
+                          <div className="space-y-2">
+                            <h3 className="font-medium text-foreground">{config.name}</h3>
+                            <p className="small text-muted-foreground">{config.description}</p>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    )
+                  })}
                 </div>
-              )}
-            </CardContent>
-          </Card>
-        )}
+              </CardContent>
+            </Card>
+          </section>
 
-        {/* Test Data Display */}
-        {testData && (
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Badge variant="secondary" className="text-sm">
-                  {roleConfig[testData.role].name}
-                </Badge>
-                Testdata
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              {/* Daglig Leder */}
-              <div>
-                <h3 className="font-semibold text-slate-900 mb-3 flex items-center gap-2">
-                  <User className="h-4 w-4" />
-                  Daglig leder
-                </h3>
-                <div className="bg-slate-50 p-4 rounded-lg space-y-2">
-                  <div className="flex justify-between">
-                    <span className="text-sm text-slate-600">Fødselsnummer:</span>
-                    <span className="font-mono text-sm">{testData.dagligLeder.foedselsnummer}</span>
+          {selectedRole && (
+            <section aria-labelledby="configuration-title">
+              <Card className="border shadow-sm rounded-xl">
+                <CardHeader className="pb-6">
+                  <CardDescription className="text-muted-foreground">
+                    Angi antall klienter som skal hentes for {roleConfig[selectedRole].name.toLowerCase()}
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                  <div className="flex flex-col sm:flex-row sm:items-center gap-4 p-4 bg-background border rounded-xl">
+                    <Label htmlFor="clientCount" className="font-medium whitespace-nowrap">
+                      Hvor mange klienter ønsker du å liste
+                    </Label>
+                    <Input
+                      id="clientCount"
+                      type="number"
+                      min="1"
+                      max="100"
+                      value={clientCount}
+                      onChange={(e) => setClientCount(Number.parseInt(e.target.value) || 1)}
+                      className="w-32 text-center font-medium border-2 border-border bg-background rounded-xl focus:ring-2 focus:ring-primary/30 focus:border-primary shadow-sm hover:shadow-md transition-all duration-200"
+                    />
+                    <span className="small text-muted-foreground">(maks 100 klienter)</span>
                   </div>
-                  <div className="flex justify-between">
-                    <span className="text-sm text-slate-600">Organisasjonsnummer:</span>
-                    <span className="font-mono text-sm">{testData.dagligLeder.organisasjonsnummer}</span>
-                  </div>
-                  {testData.dagligLeder.organisasjonsnavn && (
-                    <div className="flex justify-between">
-                      <span className="text-sm text-slate-600">Organisasjonsnavn:</span>
-                      <span className="text-sm">{testData.dagligLeder.organisasjonsnavn}</span>
+
+                  <Button
+                    onClick={handleFetchTestData}
+                    disabled={loading}
+                    size="lg"
+                    className="w-full min-h-[44px] text-lg font-semibold bg-primary hover:bg-primary/90 rounded-xl shadow-sm hover:shadow-md transition-all duration-200"
+                  >
+                    <Search className="mr-2 h-5 w-5" />
+                    {loading ? "Henter testdata..." : "Hent testdata"}
+                  </Button>
+
+                  {error && (
+                    <div className="p-4 bg-destructive/10 border border-destructive/20 rounded-xl">
+                      <p className="text-destructive font-medium">{error}</p>
                     </div>
                   )}
-                </div>
-              </div>
+                </CardContent>
+              </Card>
+            </section>
+          )}
 
-              <Separator />
-
-              {/* Clients */}
-              <div>
-                <h3 className="font-semibold text-slate-900 mb-3 flex items-center gap-2">
-                  <Building2 className="h-4 w-4" />
-                  Klienter ({testData.clients.length})
-                </h3>
-                <div className="grid gap-3">
-                  {testData.clients.map((client, index) => (
-                    <div key={index} className="bg-slate-50 p-4 rounded-lg">
-                      <div className="flex justify-between items-center">
-                        <span className="font-medium text-slate-900">{client.navn}</span>
-                        <span className="font-mono text-sm text-slate-600">{client.organisasjonsnummer}</span>
+          {loading && (
+            <section aria-labelledby="loading-title">
+              <Card className="border shadow-sm rounded-xl">
+                <CardHeader className="pb-6">
+                  <div className="flex items-center justify-between">
+                    <CardTitle id="loading-title" className="flex items-center gap-3">
+                      <div className="p-2 bg-primary/10 rounded-xl">
+                        <Building2 className="h-5 w-5 text-primary" />
                       </div>
+                      Henter testdata...
+                    </CardTitle>
+                    <div className="h-8 w-24 bg-gray-200 animate-pulse rounded-lg"></div>
+                  </div>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                  {/* Daglig leder skeleton */}
+                  <div className="space-y-4">
+                    <h3 className="flex items-center gap-3">
+                      <div className="p-1.5 bg-secondary/10 rounded-lg">
+                        <User className="h-4 w-4 text-secondary" />
+                      </div>
+                      Daglig leder
+                    </h3>
+                    <Card className="bg-background border rounded-xl">
+                      <CardContent className="p-4">
+                        <div className="animate-pulse space-y-3">
+                          <div className="flex flex-col sm:flex-row sm:justify-between gap-2">
+                            <span className="text-muted-foreground font-medium">Fødselsnummer:</span>
+                            <div className="h-4 bg-gray-200 rounded w-32"></div>
+                          </div>
+                          <div className="flex flex-col sm:flex-row sm:justify-between gap-2">
+                            <span className="text-muted-foreground font-medium">Organisasjonsnummer:</span>
+                            <div className="h-4 bg-gray-200 rounded w-28"></div>
+                          </div>
+                          <div className="flex flex-col sm:flex-row sm:justify-between gap-2">
+                            <span className="text-muted-foreground font-medium">Organisasjonsnavn:</span>
+                            <div className="h-6 bg-gray-200 rounded-full w-48"></div>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </div>
+
+                  <Separator className="my-6" />
+
+                  {/* Klienter skeleton */}
+                  <div className="space-y-4">
+                    <h3 className="flex items-center gap-3">
+                      <div className="p-1.5 bg-secondary/10 rounded-lg">
+                        <Building2 className="h-4 w-4 text-secondary" />
+                      </div>
+                      Klienter
+                      <div className="h-6 w-8 bg-gray-200 animate-pulse rounded-lg ml-2"></div>
+                    </h3>
+                    <div className="animate-pulse space-y-3">
+                      {Array.from({ length: Math.min(clientCount, 5) }).map((_, i) => (
+                        <div key={i} className="h-16 bg-gray-200 rounded-xl"></div>
+                      ))}
+                      {clientCount > 5 && (
+                        <div className="text-center py-2">
+                          <span className="small text-muted-foreground">... og {clientCount - 5} flere klienter</span>
+                        </div>
+                      )}
                     </div>
-                  ))}
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        )}
-      </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </section>
+          )}
+
+          {testData && (
+            <section aria-labelledby="results-title">
+              <Card className="border shadow-sm rounded-xl">
+                <CardHeader className="pb-6">
+                  <div className="flex items-center justify-between">
+                    <CardTitle id="results-title" className="flex items-center gap-3">
+                      <div className="p-2 bg-primary/10 rounded-xl">
+                        <Building2 className="h-5 w-5 text-primary" />
+                      </div>
+                      Testdata
+                    </CardTitle>
+                    <Badge variant="secondary" className="px-6 py-3 text-lg font-medium rounded-lg">
+                      {roleConfig[testData.role].name}
+                    </Badge>
+                  </div>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                  <div className="space-y-4">
+                    <h3 className="flex items-center gap-3">
+                      <div className="p-1.5 bg-secondary/10 rounded-lg">
+                        <User className="h-4 w-4 text-secondary" />
+                      </div>
+                      Daglig leder
+                    </h3>
+                    <Card className="bg-background border rounded-xl">
+                      <CardContent className="p-4 space-y-3">
+                        <div className="grid gap-3">
+                          <div className="flex flex-col sm:flex-row sm:justify-between gap-2">
+                            <span className="text-muted-foreground font-medium">Fødselsnummer:</span>
+                            <span className="font-mono font-medium bg-background px-3 py-1 rounded-lg border">
+                              {testData.dagligLeder.foedselsnummer}
+                            </span>
+                          </div>
+                          <div className="flex flex-col sm:flex-row sm:justify-between gap-2">
+                            <span className="text-muted-foreground font-medium">Organisasjonsnummer:</span>
+                            <span className="font-mono font-medium bg-background px-3 py-1 rounded-lg border">
+                              {testData.dagligLeder.organisasjonsnummer}
+                            </span>
+                          </div>
+                          {testData.dagligLeder.organisasjonsnavn && (
+                            <div className="flex flex-col sm:flex-row sm:justify-between gap-2">
+                              <span className="text-muted-foreground font-medium">Organisasjonsnavn:</span>
+                              <span className="font-medium bg-primary/5 text-primary px-3 py-1 rounded-lg border border-primary/20">
+                                {testData.dagligLeder.organisasjonsnavn}
+                              </span>
+                            </div>
+                          )}
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </div>
+
+                  <Separator className="my-6" />
+
+                  <div className="space-y-4">
+                    <h3 className="flex items-center gap-3">
+                      <div className="p-1.5 bg-secondary/10 rounded-lg">
+                        <Building2 className="h-4 w-4 text-secondary" />
+                      </div>
+                      Klienter
+                      <Badge variant="outline" className="ml-2 px-2 py-1 rounded-lg">
+                        {testData.clients.length}
+                      </Badge>
+                    </h3>
+                    <div className="grid gap-3">
+                      {testData.clients.map((client, index) => (
+                        <Card key={index} className="bg-background border rounded-xl hover:shadow-sm transition-shadow">
+                          <CardContent className="p-4">
+                            <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2">
+                              <span className="font-medium text-foreground">{client.navn}</span>
+                              <span className="font-mono small font-medium bg-muted px-3 py-1 rounded-lg border">
+                                {client.organisasjonsnummer}
+                              </span>
+                            </div>
+                          </CardContent>
+                        </Card>
+                      ))}
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </section>
+          )}
+        </div>
+      </main>
     </div>
   )
 }

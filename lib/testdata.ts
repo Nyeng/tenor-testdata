@@ -3,6 +3,7 @@ import {
   hentOrgnummerForRolle,
   hentFoedselsnummerForDagligLeder,
   hentVirksomheterFraKildedata,
+  hentOrganisasjonsnavn, // Added import for organization name extraction
 } from "./tenor"
 
 export interface TestDataResult {
@@ -25,7 +26,7 @@ const roleMapper = {
     code: "FFØR",
     customertype: "forretningsfoerer",
   },
-  revisor: { name: "revisor", code: "REVI", customertype: "revisorer" },
+  revisor: { name: "revisorer", code: "REVI", customertype: "revisorer" },
   regnskapsfoerere: { name: "regnskapsfoerere", code: "REGN", customertype: "regnskapsfoerere" },
 }
 
@@ -44,6 +45,13 @@ export async function fetchTestDataForRole(
   const type = roleMapper[roleKey]
   if (!type) {
     throw new Error(`Unknown role: ${roleKey}`)
+  }
+
+  const maxClientCount = 100 // Tenor API limit to prevent 400 errors
+  const limitedClientCount = Math.min(clientCount, maxClientCount)
+
+  if (clientCount > maxClientCount) {
+    console.warn(`[v0] Client count ${clientCount} exceeds API limit, using ${maxClientCount} instead`)
   }
 
   // 1. Search for role
@@ -65,11 +73,14 @@ export async function fetchTestDataForRole(
     throw new Error(`No managing director found for organization: ${orgnummer}`)
   }
 
+  const organisasjonsnavn =
+    hentOrganisasjonsnavn(orgResponse) || `${type.name.charAt(0).toUpperCase() + type.name.slice(1)} AS`
+
   // 3. Search for customers
   const customerQuery = buildQuery(`${type.customertype}:${orgnummer}`)
   const customerResponse = await searchTenor({
     query: customerQuery,
-    antall: clientCount,
+    antall: limitedClientCount, // Use limited count instead of raw clientCount
     includeTenorMetadata: true,
   })
 
@@ -81,7 +92,7 @@ export async function fetchTestDataForRole(
     dagligLeder: {
       foedselsnummer,
       organisasjonsnummer: orgnummer,
-      organisasjonsnavn: `${type.name.charAt(0).toUpperCase() + type.name.slice(1)} AS`,
+      organisasjonsnavn,
     },
     clients,
   }

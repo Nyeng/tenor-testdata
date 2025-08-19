@@ -131,3 +131,18 @@ export function hentVirksomheterFraKildedata(
 
   return resultater
 }
+
+export function hentOrganisasjonsnavn(responseJson: TenorResponse | null): string | null {
+  const dokument = responseJson?.dokumentListe?.[0]
+  if (!dokument) {
+    return null
+  }
+
+  try {
+    const kildedata = JSON.parse(dokument.tenorMetadata.kildedata)
+    return kildedata.navn || null
+  } catch (error) {
+    console.error("Error parsing kildedata for organization name:", error)
+    return null
+  }
+}

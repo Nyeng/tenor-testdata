@@ -33,12 +33,9 @@ export async function generateAccessToken(): Promise<string> {
   }
 
   try {
-    console.log("[v0] Starting JWT creation with jose library")
-
     const jwkData = JSON.parse(Buffer.from(process.env.ENCODED_JWK!, "base64").toString())
     const cleanedJwk = cleanJWK(jwkData)
 
-    console.log("[v0] Cleaned JWK, importing private key")
     const privateKey = await importJWK(cleanedJwk, "RS256")
 
     const payload = {
@@ -50,7 +47,6 @@ export async function generateAccessToken(): Promise<string> {
       jti: crypto.randomUUID(),
     }
 
-    console.log("[v0] Creating and signing JWT")
     const jwt = await new SignJWT(payload)
       .setProtectedHeader({
         alg: "RS256",
@@ -58,8 +54,6 @@ export async function generateAccessToken(): Promise<string> {
         kid: process.env.MACHINEPORTEN_KID!,
       })
       .sign(privateKey)
-
-    console.log("[v0] JWT created successfully, requesting token from Maskinporten")
 
     // Request token
     const response = await fetch(MASKINPORTEN_CONFIG.tokenEndpoint, {
@@ -82,13 +76,10 @@ export async function generateAccessToken(): Promise<string> {
     const tokenData = await response.json()
     const token = tokenData.access_token
 
-    console.log("[v0] Successfully received access token from Maskinporten")
-
     // Decode token to get expiration
     const payload_decoded = JSON.parse(Buffer.from(token.split(".")[1], "base64").toString())
     const expiresAt = payload_decoded.exp * 1000
 
-    // Cache token
     tokenCache.set(cacheKey, { token, expiresAt })
 
     return token

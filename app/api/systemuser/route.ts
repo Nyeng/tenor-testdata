@@ -8,7 +8,7 @@ export async function POST(request: NextRequest) {
     console.log("[v0] Environment:", environment)
     console.log("[v0] Request body:", JSON.stringify(requestBody, null, 2))
 
-    const baseUrl = environment === "tt02" ? "https://platform.tt02.altinn.cloud" : "https://platform.at22.altinn.cloud"
+    const baseUrl = environment === "tt02" ? "https://platform.tt02.altinn.no" : "https://platform.at22.altinn.cloud"
 
     // Updated URL to include /agent at the end
     const url = `${baseUrl}/authentication/api/v1/systemuser/request/vendor/agent`
@@ -33,12 +33,26 @@ export async function POST(request: NextRequest) {
     console.log("[v0] System user API response status:", response.status)
     console.log("[v0] Response headers:", Object.fromEntries(response.headers.entries()))
 
+    const contentType = response.headers.get("content-type")
+    console.log("[v0] Response content-type:", contentType)
+
     if (!response.ok) {
       const errorText = await response.text()
       console.log("[v0] Error response body:", errorText)
       return NextResponse.json(
         { error: `System user creation failed: ${response.status} - ${errorText}` },
         { status: response.status },
+      )
+    }
+
+    if (!contentType || !contentType.includes("application/json")) {
+      const responseText = await response.text()
+      console.log("[v0] Non-JSON response received:", responseText)
+      return NextResponse.json(
+        {
+          error: `System user creation failed: Expected JSON response but received ${contentType}. Response: ${responseText}`,
+        },
+        { status: 500 },
       )
     }
 

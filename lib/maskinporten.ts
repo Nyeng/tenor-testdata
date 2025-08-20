@@ -88,3 +88,5 @@ export async function generateAccessToken(): Promise<string> {
     throw new Error(`JWT creation failed: ${error instanceof Error ? error.message : "Unknown error"}`)
   }
 }
+
+export const getMaskinportenToken = generateAccessToken

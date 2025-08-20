@@ -1,0 +1,56 @@
+import { type NextRequest, NextResponse } from "next/server"
+
+export async function POST(request: NextRequest) {
+  try {
+    const { token, requestBody, environment } = await request.json()
+
+    console.log("[v0] Server-side system user creation request")
+    console.log("[v0] Environment:", environment)
+    console.log("[v0] Request body:", JSON.stringify(requestBody, null, 2))
+
+    const baseUrl = environment === "tt02" ? "https://platform.tt02.altinn.cloud" : "https://platform.at22.altinn.cloud"
+
+    // Updated URL to include /agent at the end
+    const url = `${baseUrl}/authentication/api/v1/systemuser/request/vendor/agent`
+
+    console.log("[v0] Making request to:", url)
+    console.log("[v0] Using token (first 20 chars):", token.substring(0, 20) + "...")
+
+    const enhancedRequestBody = {
+      ...requestBody,
+      Rights: [], // Required field for the API
+    }
+
+    const response = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify(enhancedRequestBody),
+    })
+
+    console.log("[v0] System user API response status:", response.status)
+    console.log("[v0] Response headers:", Object.fromEntries(response.headers.entries()))
+
+    if (!response.ok) {
+      const errorText = await response.text()
+      console.log("[v0] Error response body:", errorText)
+      return NextResponse.json(
+        { error: `System user creation failed: ${response.status} - ${errorText}` },
+        { status: response.status },
+      )
+    }
+
+    const responseData = await response.json()
+    console.log("[v0] System user created successfully:", responseData)
+
+    return NextResponse.json(responseData)
+  } catch (error) {
+    console.error("[v0] System user creation error:", error)
+    return NextResponse.json(
+      { error: `System user creation failed: ${error instanceof Error ? error.message : "Unknown error"}` },
+      { status: 500 },
+    )
+  }
+}

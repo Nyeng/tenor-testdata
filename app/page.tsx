@@ -7,9 +7,12 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
-import { Building2, Users, User, Settings, Search, CheckCircle2 } from "lucide-react"
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Building2, Users, User, Settings, Search, CheckCircle2, ExternalLink, AlertCircle } from "lucide-react"
 
 type Role = "forretningsfoerer" | "revisor" | "regnskapsfoerere"
+type Environment = "at22" | "tt02"
 
 interface TestData {
   role: Role
@@ -25,10 +28,32 @@ interface TestData {
   }>
 }
 
-interface EnvVarStatus {
-  name: string
-  isSet: boolean
-  description: string
+interface SystemUserResponse {
+  id: string
+  externalRef: string
+  systemId: string
+  partyOrgNo: string
+  accessPackages: Array<{
+    urn: string
+  }>
+  status: string
+  redirectUrl: string
+  confirmUrl: string
+}
+
+const accessPackageMapping = {
+  revisor: {
+    urn: "urn:altinn:accesspackage:ansvarlig-revisor",
+    displayName: "Ansvarlig revisor",
+  },
+  forretningsfoerer: {
+    urn: "urn:altinn:accesspackage:forretningsforer-eiendom",
+    displayName: "Forretningsfører eiendom",
+  },
+  regnskapsfoerere: {
+    urn: "urn:altinn:accesspackage:regnskapsforer-lonn",
+    displayName: "Regnskapsfører lønn",
+  },
 }
 
 const roleConfig = {
@@ -59,6 +84,12 @@ export default function TestDataInterface() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [envVarsReady, setEnvVarsReady] = useState(false)
+
+  const [selectedEnvironment, setSelectedEnvironment] = useState<Environment>("at22")
+  const [systemUserModalOpen, setSystemUserModalOpen] = useState(false)
+  const [systemUserLoading, setSystemUserLoading] = useState(false)
+  const [systemUserResponse, setSystemUserResponse] = useState<SystemUserResponse | null>(null)
+  const [systemUserError, setSystemUserError] = useState<string | null>(null)
 
   useEffect(() => {
     const checkEnvVars = async () => {
@@ -115,6 +146,73 @@ export default function TestDataInterface() {
       console.error("[v0] Error fetching test data:", err)
     } finally {
       setLoading(false)
+    }
+  }
+
+  const handleCreateSystemUser = async () => {
+    if (!testData || !selectedRole) return
+
+    setSystemUserModalOpen(true)
+    setSystemUserLoading(true)
+    setSystemUserError(null)
+    setSystemUserResponse(null)
+
+    try {
+      // Generate token
+      const tokenResponse = await fetch("/api/token", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          orgNo: "312605031", // systemId organization number
+          env: selectedEnvironment,
+        }),
+      })
+
+      if (!tokenResponse.ok) {
+        const tokenError = await tokenResponse.json()
+        throw new Error(`Token generation failed: ${tokenError.error}`)
+      }
+
+      const { token } = await tokenResponse.json()
+      console.log("[v0] Token generated successfully, length:", token?.length || 0)
+
+      const systemUserRequest = {
+        externalRef: crypto.randomUUID(),
+        systemId: "312605031_SystemtilgangKlientDelegering",
+        partyOrgNo: testData.dagligLeder.organisasjonsnummer,
+        accessPackages: [{ urn: accessPackageMapping[selectedRole].urn }],
+        redirectUrl: "",
+      }
+
+      console.log("[v0] Making system user request via server-side API")
+      console.log("[v0] System user request body:", JSON.stringify(systemUserRequest, null, 2))
+
+      const systemUserResponse = await fetch("/api/systemuser", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          token,
+          requestBody: systemUserRequest,
+          environment: selectedEnvironment,
+        }),
+      })
+
+      if (!systemUserResponse.ok) {
+        const errorData = await systemUserResponse.json()
+        throw new Error(errorData.error || "System user creation failed")
+      }
+
+      const result = await systemUserResponse.json()
+      console.log("[v0] System user created successfully:", result)
+      setSystemUserResponse(result)
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : "Feil ved opprettelse av systembruker"
+      setSystemUserError(errorMessage)
+      console.error("[v0] System user creation error:", err)
+    } finally {
+      setSystemUserLoading(false)
     }
   }
 
@@ -337,14 +435,33 @@ export default function TestDataInterface() {
                 </CardHeader>
                 <CardContent className="space-y-6">
                   <div className="space-y-4">
-                    <h3 className="flex items-center gap-3">
-                      <div className="p-1.5 bg-secondary/10 rounded-lg">
-                        <User className="h-4 w-4 text-secondary" />
+                    <div className="flex items-center justify-between">
+                      <h3 className="flex items-center gap-3">
+                        <div className="p-1.5 bg-secondary/10 rounded-lg">
+                          <User className="h-4 w-4 text-secondary" />
+                        </div>
+                        Daglig leder
+                      </h3>
+                      <div className="flex items-center gap-2">
+                        <Label htmlFor="environment" className="text-sm font-medium">
+                          Miljø:
+                        </Label>
+                        <Select
+                          value={selectedEnvironment}
+                          onValueChange={(value: Environment) => setSelectedEnvironment(value)}
+                        >
+                          <SelectTrigger id="environment" className="w-24 h-8 text-sm">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="at22">AT22</SelectItem>
+                            <SelectItem value="tt02">TT02</SelectItem>
+                          </SelectContent>
+                        </Select>
                       </div>
-                      Daglig leder
-                    </h3>
+                    </div>
                     <Card className="bg-background border rounded-xl">
-                      <CardContent className="p-4 space-y-3">
+                      <CardContent className="p-4 space-y-4">
                         <div className="grid gap-3">
                           <div className="flex flex-col sm:flex-row sm:justify-between gap-2">
                             <span className="text-muted-foreground font-medium">Fødselsnummer:</span>
@@ -366,6 +483,14 @@ export default function TestDataInterface() {
                               </span>
                             </div>
                           )}
+                        </div>
+                        <div className="pt-2">
+                          <Button
+                            onClick={handleCreateSystemUser}
+                            className="w-full min-h-[44px] bg-primary hover:bg-primary/90 rounded-xl shadow-sm hover:shadow-md transition-all duration-200"
+                          >
+                            Opprett Systembruker med tilgangspakke {accessPackageMapping[selectedRole].displayName}
+                          </Button>
                         </div>
                       </CardContent>
                     </Card>
@@ -404,6 +529,106 @@ export default function TestDataInterface() {
           )}
         </div>
       </main>
+
+      <Dialog open={systemUserModalOpen} onOpenChange={setSystemUserModalOpen}>
+        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Opprett Systembruker</DialogTitle>
+            <DialogDescription>
+              Oppretter systembruker for{" "}
+              {testData?.dagligLeder.organisasjonsnavn || testData?.dagligLeder.organisasjonsnummer}
+            </DialogDescription>
+          </DialogHeader>
+
+          {systemUserLoading && (
+            <div className="animate-pulse space-y-4 py-4">
+              <div className="h-5 bg-gray-200 rounded w-1/3"></div>
+              <div className="h-4 bg-gray-200 rounded w-2/3"></div>
+              <div className="h-4 bg-gray-200 rounded w-1/2"></div>
+              <div className="h-10 bg-gray-200 rounded w-40"></div>
+            </div>
+          )}
+
+          {systemUserError && (
+            <div className="space-y-4 py-4">
+              <div className="flex items-center gap-2 text-destructive">
+                <AlertCircle className="h-5 w-5" />
+                <span className="font-medium">Feil ved opprettelse</span>
+              </div>
+              <p className="text-sm text-muted-foreground">{systemUserError}</p>
+              <Button onClick={handleCreateSystemUser} variant="outline">
+                Prøv igjen
+              </Button>
+            </div>
+          )}
+
+          {systemUserResponse && testData && (
+            <div className="space-y-4 py-4">
+              <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
+                <p className="text-green-800 font-medium">
+                  Logg inn med fødselsnummer{" "}
+                  <span className="bg-green-100 px-2 py-1 rounded font-mono font-bold border border-green-300">
+                    {testData.dagligLeder.foedselsnummer}
+                  </span>
+                </p>
+              </div>
+
+              <div className="space-y-3">
+                <div className="flex justify-between">
+                  <span className="font-medium">Status:</span>
+                  <Badge variant="outline">{systemUserResponse.status}</Badge>
+                </div>
+                <div className="flex justify-between">
+                  <span className="font-medium">System ID:</span>
+                  <span className="font-mono text-sm">{systemUserResponse.systemId}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="font-medium">Organisasjon:</span>
+                  <span className="font-mono text-sm">{systemUserResponse.partyOrgNo}</span>
+                </div>
+              </div>
+
+              <Button asChild className="w-full text-lg">
+                <a href={systemUserResponse.confirmUrl} target="_blank" rel="noopener noreferrer">
+                  Logg inn i Altinn for å godkjenne Systembruker
+                  <ExternalLink className="ml-2 h-4 w-4" />
+                </a>
+              </Button>
+
+              <div className="pt-4 border-t space-y-3">
+                <div className="p-4 bg-gray-50 border border-gray-200 rounded-lg">
+                  <p className="text-gray-800 text-sm">
+                    Etter systembruker er godkjent kan du sjekke Systembrukeren. Husk å velge aktør (organisasjon{" "}
+                    <span className="bg-gray-100 px-2 py-1 rounded font-mono font-bold border border-gray-300">
+                      {testData.dagligLeder.organisasjonsnummer}
+                    </span>
+                    ) etter å ha logget inn med daglig leder (
+                    <span className="bg-gray-100 px-2 py-1 rounded font-mono font-bold border border-gray-300">
+                      {testData.dagligLeder.foedselsnummer}
+                    </span>
+                    ).
+                  </p>
+                </div>
+
+                <Button asChild variant="outline" className="w-full bg-transparent text-lg">
+                  <a
+                    href={
+                      selectedEnvironment === "at22"
+                        ? "https://am.ui.at22.altinn.cloud/accessmanagement/ui/systemuser/overview"
+                        : "https://am.ui.tt02.altinn.no/accessmanagement/ui/systemuser/overview"
+                    }
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    Gå til Systemtilgang-siden
+                    <ExternalLink className="ml-2 h-4 w-4" />
+                  </a>
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

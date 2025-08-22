@@ -3,12 +3,10 @@
 import { useState, useEffect } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { Separator } from "@/components/ui/separator"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import {
   Building2,
   Users,
@@ -18,8 +16,10 @@ import {
   CheckCircle2,
   ExternalLink,
   AlertCircle,
-  X,
   UserCheck,
+  Copy,
+  X,
+  Package,
 } from "lucide-react"
 
 type Role = "forretningsfoerer" | "revisor" | "regnskapsfoerere" | "dagligLeder"
@@ -304,6 +304,10 @@ export default function TestDataInterface() {
   const [accessPackageDropdownOpen, setAccessPackageDropdownOpen] = useState(false)
   const [isCreatingSystemUser, setIsCreatingSystemUser] = useState(false)
 
+  const [showPreviewModal, setShowPreviewModal] = useState(false)
+  const [previewRequestBody, setPreviewRequestBody] = useState<any>(null)
+  const [showAccessPackages, setShowAccessPackages] = useState(false)
+
   const filteredAccessPackages = accessPackages.filter(
     (pkg) => pkg && pkg.displayName && pkg.displayName.toLowerCase().includes(accessPackageSearch.toLowerCase()),
   )
@@ -392,6 +396,21 @@ export default function TestDataInterface() {
     }
   }
 
+  const handlePreviewSystemUser = () => {
+    if (!testData || !selectedRole || selectedRole === "dagligLeder") return
+
+    const requestBody = {
+      externalRef: crypto.randomUUID(),
+      systemId: "312605031_SystemtilgangKlientDelegering",
+      partyOrgNo: testData.dagligLeder.organisasjonsnummer,
+      accessPackages: [{ urn: accessPackageMapping[selectedRole].urn }],
+      redirectUrl: "",
+    }
+
+    setPreviewRequestBody(requestBody)
+    setShowPreviewModal(true)
+  }
+
   const handleCreateSystemUser = async () => {
     if (!testData || !selectedRole || selectedRole === "dagligLeder") return
 
@@ -458,6 +477,24 @@ export default function TestDataInterface() {
       setSystemUserLoading(false)
       setIsCreatingSystemUser(false)
     }
+  }
+
+  const handlePreviewVirksomhetsbruker = (leader: DagligLederData["leaders"][0]) => {
+    if (selectedAccessPackages.length === 0) {
+      setVirksomhetsbrukerError("Tilgangspakke må velges før du kan se eksempel-forespørsel")
+      return
+    }
+
+    const requestBody = {
+      systemId: "312605031_Virksomhetsbruker",
+      partyOrgNo: leader.organisasjonsnummer,
+      externalRef: crypto.randomUUID(),
+      redirectUrl: "",
+      accessPackages: selectedAccessPackages.map((pkg) => ({ urn: pkg.urn })),
+    }
+
+    setPreviewRequestBody(requestBody)
+    setShowPreviewModal(true)
   }
 
   const handleCreateVirksomhetsbruker = async (leader: DagligLederData["leaders"][0]) => {
@@ -545,6 +582,18 @@ export default function TestDataInterface() {
     setAccessPackageSearch("")
   }
 
+  const handleRoleChange = (role: Role) => {
+    setSelectedRole(role)
+    setAccessPackageSearch("")
+    setAccessPackageDropdownOpen(false)
+    setSelectedAccessPackages([])
+    // Clear all test data when switching categories
+    setTestData(null)
+    setDagligLederData(null)
+    setLoading(false)
+    setError(null)
+  }
+
   return (
     <div className="min-h-screen bg-muted">
       <header className="border-b bg-background shadow-sm">
@@ -569,8 +618,10 @@ export default function TestDataInterface() {
                   </div>
                   Velg rolle
                 </CardTitle>
+                {/* Updated description to mention system user creation capability */}
                 <CardDescription className="text-muted-foreground">
-                  Velg hvilken type organisasjon du vil hente testdata for
+                  Velg hvilken type organisasjon du vil hente testdata for. Du kan også opprette systembruker for
+                  brukeren du henter her for testdataene.
                 </CardDescription>
               </CardHeader>
               <CardContent>
@@ -588,13 +639,13 @@ export default function TestDataInterface() {
                             ? "ring-2 ring-primary bg-primary/5 shadow-md"
                             : "hover:bg-muted/50 border hover:border-primary/30"
                         }`}
-                        onClick={() => setSelectedRole(role)}
+                        onClick={() => handleRoleChange(role)}
                         role="button"
                         tabIndex={0}
                         onKeyDown={(e) => {
                           if (e.key === "Enter" || e.key === " ") {
                             e.preventDefault()
-                            setSelectedRole(role)
+                            handleRoleChange(role)
                           }
                         }}
                         aria-pressed={isSelected}
@@ -633,36 +684,176 @@ export default function TestDataInterface() {
             </Card>
           </section>
 
-          {selectedRole === "dagligLeder" && (
-            <section aria-labelledby="client-count-section">
-              <Card className="border shadow-sm rounded-xl">
-                <CardContent className="p-6 space-y-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="clientCount" className="text-sm font-medium">
-                      Hvor mange daglige ledere ønsker du å liste (maks 100)
-                    </Label>
-                    <Input
-                      id="clientCount"
-                      type="number"
-                      min="1"
-                      max="100"
-                      value={clientCount}
-                      onChange={(e) => setClientCount(Math.min(100, Math.max(1, Number.parseInt(e.target.value) || 1)))}
-                      className="w-full min-h-[44px] bg-background border-2 focus:ring-2 focus:ring-primary/30 focus:border-primary rounded-xl"
-                    />
+          {selectedRole === "dagligLeder" && dagligLederData && (
+            <div className="space-y-4">
+              <div className="p-4 bg-green-50 border border-green-200 rounded-lg space-y-4">
+                <div className="flex items-center gap-2 mb-3">
+                  <User className="h-5 w-5 text-green-600" />
+                  <h3 className="font-semibold text-green-900">Opprett systembruker for virksomhet</h3>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-sm">
+                  <div className="flex items-center gap-2">
+                    <span className="text-muted-foreground font-medium">Navn:</span>
+                    <span className="font-medium">{dagligLederData.leaders[0].organisasjonsnavn}</span>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => navigator.clipboard.writeText(dagligLederData.leaders[0].organisasjonsnavn)}
+                      className="h-6 w-6 p-0 hover:bg-muted"
+                    >
+                      <Copy className="h-3 w-3" />
+                    </Button>
                   </div>
-                  <Button
-                    onClick={handleFetchTestData}
-                    disabled={loading}
-                    size="lg"
-                    className="w-full min-h-[44px] text-lg font-semibold bg-primary hover:bg-primary/90 rounded-xl shadow-sm hover:shadow-md transition-all duration-200"
-                  >
-                    <Search className="mr-2 h-5 w-5" />
-                    {loading ? "Henter testdata..." : "Hent testdata"}
-                  </Button>
-                </CardContent>
-              </Card>
-            </section>
+                  <div className="flex items-center gap-2">
+                    <span className="text-muted-foreground font-medium">Organisasjonsnummer:</span>
+                    <span className="font-mono font-medium bg-muted px-2 py-1 rounded border">
+                      {dagligLederData.leaders[0].organisasjonsnummer}
+                    </span>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => navigator.clipboard.writeText(dagligLederData.leaders[0].organisasjonsnummer)}
+                      className="h-6 w-6 p-0 hover:bg-muted"
+                    >
+                      <Copy className="h-3 w-3" />
+                    </Button>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-muted-foreground font-medium">Fødselsnummer:</span>
+                    <span className="font-mono font-medium bg-muted px-2 py-1 rounded border">
+                      {dagligLederData.leaders[0].foedselsnummer}
+                    </span>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => navigator.clipboard.writeText(dagligLederData.leaders[0].foedselsnummer)}
+                      className="h-6 w-6 p-0 hover:bg-muted"
+                    >
+                      <Copy className="h-3 w-3" />
+                    </Button>
+                  </div>
+                </div>
+
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2">
+                    <Package className="h-4 w-4 text-blue-600" />
+                    <span className="font-medium text-blue-900">Velg tilgangspakker (påkrevd)</span>
+                  </div>
+                  <p className="text-sm text-blue-700">
+                    Du må velge minst én tilgangspakke før du kan opprette systembruker.
+                  </p>
+
+                  <div className="relative">
+                    <Input
+                      type="text"
+                      placeholder="Søk etter tilgangspakker..."
+                      value={accessPackageSearch}
+                      onChange={(e) => setAccessPackageSearch(e.target.value)}
+                      onFocus={() => setAccessPackageDropdownOpen(true)}
+                      className="w-full"
+                    />
+                    {accessPackageDropdownOpen && (
+                      <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-md shadow-lg z-50 max-h-64 overflow-y-auto">
+                        {filteredAccessPackages.length > 0 ? (
+                          filteredAccessPackages.map((pkg) => (
+                            <button
+                              key={pkg.urn}
+                              onClick={() => {
+                                addAccessPackage(pkg)
+                                setAccessPackageDropdownOpen(false)
+                              }}
+                              className="w-full text-left px-3 py-2 hover:bg-gray-50 border-b border-gray-100 last:border-b-0"
+                            >
+                              <div className="font-medium text-sm">{pkg.displayName}</div>
+                              <div className="text-xs text-gray-500">{pkg.description}</div>
+                            </button>
+                          ))
+                        ) : (
+                          <div className="px-3 py-2 text-sm text-gray-500">Ingen tilgangspakker funnet</div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+
+                  {selectedAccessPackages.length > 0 && (
+                    <div className="space-y-2">
+                      <span className="text-sm font-medium text-green-900">Valgte tilgangspakker:</span>
+                      <div className="flex flex-wrap gap-2">
+                        {selectedAccessPackages.map((pkg) => (
+                          <div
+                            key={pkg.urn}
+                            className="flex items-center gap-1 bg-green-100 text-green-800 px-2 py-1 rounded-md text-xs"
+                          >
+                            <span>{pkg.displayName}</span>
+                            <button
+                              onClick={() =>
+                                setSelectedAccessPackages(
+                                  selectedAccessPackages.filter((selected) => selected.urn !== pkg.urn),
+                                )
+                              }
+                              className="ml-1 hover:bg-green-200 rounded-full p-0.5"
+                            >
+                              <X className="h-3 w-3" />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="flex gap-3 pt-2">
+                    <Button
+                      onClick={() => handlePreviewVirksomhetsbruker(dagligLederData.leaders[0])}
+                      variant="outline"
+                      size="sm"
+                    >
+                      Vis eksempel-forespørsel
+                    </Button>
+                    <Button
+                      onClick={() => handleCreateVirksomhetsbruker(dagligLederData.leaders[0])}
+                      className="bg-green-600 hover:bg-green-700 text-white"
+                      size="default"
+                    >
+                      <span className="text-base font-semibold">Opprett systembruker for virksomheten</span>
+                    </Button>
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                <h3 className="font-semibold text-foreground flex items-center gap-2">
+                  <Users className="h-5 w-5" />
+                  Andre daglige ledere
+                </h3>
+                <div className="space-y-2">
+                  {dagligLederData.leaders.slice(1).map((leader, index) => (
+                    <Card key={index + 1} className="bg-background border rounded-xl hover:shadow-sm transition-shadow">
+                      <CardContent className="p-4">
+                        <div className="space-y-2">
+                          <div className="flex flex-col sm:flex-row sm:justify-between gap-1">
+                            <span className="text-muted-foreground font-medium">Navn:</span>
+                            <span className="font-medium text-foreground">{leader.organisasjonsnavn}</span>
+                          </div>
+                          <div className="flex flex-col sm:flex-row sm:justify-between gap-1">
+                            <span className="text-muted-foreground font-medium">Organisasjonsnummer:</span>
+                            <span className="font-mono font-medium bg-muted px-3 py-1 rounded-lg border">
+                              {leader.organisasjonsnummer}
+                            </span>
+                          </div>
+                          <div className="flex flex-col sm:flex-row sm:justify-between gap-1">
+                            <span className="text-muted-foreground font-medium">Fødselsnummer:</span>
+                            <span className="font-mono font-medium bg-muted px-3 py-1 rounded-lg border">
+                              {leader.foedselsnummer}
+                            </span>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              </div>
+            </div>
           )}
 
           {selectedRole && selectedRole !== "dagligLeder" && (
@@ -676,7 +867,31 @@ export default function TestDataInterface() {
                     className="w-full min-h-[44px] text-lg font-semibold bg-primary hover:bg-primary/90 rounded-xl shadow-sm hover:shadow-md transition-all duration-200"
                   >
                     <Search className="mr-2 h-5 w-5" />
-                    {loading ? "Henter testdata..." : "Hent testdata"}
+                    {loading ? "Henter testdata" : "Hent testdata"}
+                  </Button>
+
+                  {error && (
+                    <div className="mt-4 p-4 bg-destructive/10 border border-destructive/20 rounded-xl">
+                      <p className="text-destructive font-medium">{error}</p>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </section>
+          )}
+
+          {selectedRole === "dagligLeder" && (
+            <section aria-labelledby="fetch-data-section">
+              <Card className="border shadow-sm rounded-xl">
+                <CardContent className="p-6">
+                  <Button
+                    onClick={handleFetchTestData}
+                    disabled={loading}
+                    size="lg"
+                    className="w-full min-h-[44px] text-lg font-semibold bg-primary hover:bg-primary/90 rounded-xl shadow-sm hover:shadow-md transition-all duration-200"
+                  >
+                    <Search className="mr-2 h-5 w-5" />
+                    {loading ? "Henter testdata" : "Hent testdata"}
                   </Button>
 
                   {error && (
@@ -770,297 +985,109 @@ export default function TestDataInterface() {
             </section>
           )}
 
-          {dagligLederData && (
-            <section aria-labelledby="daglig-leder-results-title">
-              <Card className="border shadow-sm rounded-xl">
-                <CardHeader className="pb-6">
-                  <div className="flex items-center justify-between">
-                    <CardTitle id="daglig-leder-results-title" className="flex items-center gap-3">
-                      <div className="p-2 bg-primary/10 rounded-xl">
-                        <UserCheck className="h-5 w-5 text-primary" />
-                      </div>
-                      Daglige ledere
-                    </CardTitle>
-                    <div className="flex items-center gap-4">
-                      <Badge variant="secondary" className="px-6 py-3 text-lg font-medium rounded-lg">
-                        {dagligLederData.leaders.length} ledere
-                      </Badge>
-                      <div className="flex items-center gap-2">
-                        <Label htmlFor="environment" className="text-sm font-medium">
-                          Miljø:
-                        </Label>
-                        <Select
-                          value={selectedEnvironment}
-                          onValueChange={(value: Environment) => setSelectedEnvironment(value)}
-                        >
-                          <SelectTrigger id="environment" className="w-24 h-8 text-sm">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="at22">AT22</SelectItem>
-                            <SelectItem value="tt02">TT02</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    </div>
+          {selectedRole && selectedRole !== "dagligLeder" && testData && (
+            <section aria-labelledby="test-data-results">
+              <div className="space-y-6">
+                <div className="flex items-center gap-3">
+                  <div className="p-1.5 bg-secondary/10 rounded-lg">
+                    <User className="h-4 w-4 text-secondary" />
                   </div>
-                </CardHeader>
-                <CardContent className="space-y-6">
-                  {/* Access package selection */}
-                  <div className="space-y-4">
-                    <h3 className="font-medium text-foreground">Velg tilgangspakker for Virksomhetsbruker</h3>
+                  <h3 className="text-lg font-semibold">Daglig leder</h3>
+                </div>
 
-                    <div className="space-y-3">
-                      <div className="relative">
-                        <Input
-                          placeholder="Søk eller bla gjennom tilgangspakker..."
-                          value={accessPackageSearch}
-                          onChange={(e) => setAccessPackageSearch(e.target.value)}
-                          onFocus={() => setAccessPackageDropdownOpen(true)}
-                          className="w-full min-h-[44px] bg-background border-2 focus:ring-2 focus:ring-primary/30 focus:border-primary rounded-xl"
-                        />
-
-                        {accessPackageDropdownOpen && (
-                          <div className="absolute top-full left-0 right-0 z-50 mt-1 border rounded-xl bg-background shadow-lg max-h-64 overflow-y-auto">
-                            {filteredAccessPackages.length > 0 ? (
-                              filteredAccessPackages.map((pkg) => (
-                                <button
-                                  key={pkg.urn}
-                                  onClick={() => {
-                                    addAccessPackage(pkg)
-                                    setAccessPackageDropdownOpen(false)
-                                    setAccessPackageSearch("")
-                                  }}
-                                  className="w-full text-left p-3 hover:bg-muted/50 border-b last:border-b-0 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                                  disabled={selectedAccessPackages.some((selected) => selected.urn === pkg.urn)}
-                                >
-                                  <span className="text-sm font-medium">{pkg.displayName}</span>
-                                  {selectedAccessPackages.some((selected) => selected.urn === pkg.urn) && (
-                                    <span className="text-xs text-muted-foreground ml-2">(Allerede valgt)</span>
-                                  )}
-                                </button>
-                              ))
-                            ) : accessPackageSearch ? (
-                              <div className="p-3 text-sm text-muted-foreground">Ingen tilgangspakker funnet</div>
-                            ) : (
-                              accessPackages.map((pkg) => (
-                                <button
-                                  key={pkg.urn}
-                                  onClick={() => {
-                                    addAccessPackage(pkg)
-                                    setAccessPackageDropdownOpen(false)
-                                  }}
-                                  className="w-full text-left p-3 hover:bg-muted/50 border-b last:border-b-0 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                                  disabled={selectedAccessPackages.some((selected) => selected.urn === pkg.urn)}
-                                >
-                                  <span className="text-sm font-medium">{pkg.displayName}</span>
-                                  {selectedAccessPackages.some((selected) => selected.urn === pkg.urn) && (
-                                    <span className="text-xs text-muted-foreground ml-2">(Allerede valgt)</span>
-                                  )}
-                                </button>
-                              ))
-                            )}
-                          </div>
-                        )}
-                      </div>
-
-                      {accessPackageDropdownOpen && (
-                        <div className="fixed inset-0 z-40" onClick={() => setAccessPackageDropdownOpen(false)} />
-                      )}
-
-                      {selectedAccessPackages.length > 0 && (
-                        <div className="space-y-2">
-                          <span className="text-sm font-medium">Valgte tilgangspakker:</span>
-                          <div className="flex flex-wrap gap-2">
-                            {selectedAccessPackages.map((pkg) => (
-                              <Badge
-                                key={pkg.urn}
-                                variant="secondary"
-                                className="px-3 py-1 rounded-lg flex items-center gap-2"
-                              >
-                                {pkg.displayName}
-                                <button
-                                  onClick={() => removeAccessPackage(pkg)}
-                                  className="hover:bg-destructive/20 rounded-full p-0.5"
-                                >
-                                  <X className="h-3 w-3" />
-                                </button>
-                              </Badge>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-
-                  <Separator className="my-6" />
-
-                  <div className="grid gap-4">
-                    {dagligLederData.leaders.map((leader, index) => (
-                      <Card key={index} className="bg-background border rounded-xl hover:shadow-sm transition-shadow">
-                        <CardContent className="p-4 space-y-4">
-                          <div className="grid gap-3">
-                            <div className="flex flex-col sm:flex-row sm:justify-between gap-1">
-                              <span className="text-muted-foreground font-medium">Fødselsnummer:</span>
-                              <span className="font-mono font-medium bg-background px-3 py-1 rounded-lg border">
-                                {leader.foedselsnummer}
-                              </span>
-                            </div>
-                            <div className="flex flex-col sm:flex-row sm:justify-between gap-1">
-                              <span className="text-muted-foreground font-medium">Organisasjonsnummer:</span>
-                              <span className="font-mono font-medium bg-background px-3 py-1 rounded-lg border">
-                                {leader.organisasjonsnummer}
-                              </span>
-                            </div>
-                            {leader.organisasjonsnavn && (
-                              <div className="flex flex-col sm:flex-row sm:justify-between gap-1">
-                                <span className="text-muted-foreground font-medium">Organisasjonsnavn:</span>
-                                <span className="font-medium bg-primary/5 text-primary px-3 py-1 rounded-lg border border-primary/20">
-                                  {leader.organisasjonsnavn}
-                                </span>
-                              </div>
-                            )}
-                          </div>
-                          <div className="pt-2">
-                            <Button
-                              onClick={() => handleCreateVirksomhetsbruker(leader)}
-                              className="w-full min-h-[44px] bg-primary hover:bg-primary/90 rounded-xl shadow-sm hover:shadow-md transition-all duration-200"
-                            >
-                              Opprett Virksomhetsbruker
-                              {selectedAccessPackages.length > 0 && (
-                                <Badge variant="secondary" className="ml-2">
-                                  {selectedAccessPackages.length}
-                                </Badge>
-                              )}
-                            </Button>
-                          </div>
-                        </CardContent>
-                      </Card>
-                    ))}
-                  </div>
-                </CardContent>
-              </Card>
-            </section>
-          )}
-
-          {testData && (
-            <section aria-labelledby="results-title">
-              <Card className="border shadow-sm rounded-xl">
-                <CardHeader className="pb-6">
-                  <div className="flex items-center justify-between">
-                    <CardTitle id="results-title" className="flex items-center gap-3">
-                      <div className="p-2 bg-primary/10 rounded-xl">
-                        <Building2 className="h-5 w-5 text-primary" />
-                      </div>
-                      Testdata
-                    </CardTitle>
-                    <Badge variant="secondary" className="px-6 py-3 text-lg font-medium rounded-lg">
-                      {roleConfig[testData.role].name}
-                    </Badge>
-                  </div>
-                </CardHeader>
-                <CardContent className="space-y-6">
-                  <div className="space-y-4">
-                    <div className="flex items-center justify-between">
-                      <h3 className="flex items-center gap-3">
-                        <div className="p-1.5 bg-secondary/10 rounded-lg">
-                          <User className="h-4 w-4 text-secondary" />
-                        </div>
-                        Daglig leder
-                      </h3>
-                      <div className="flex items-center gap-2">
-                        <Label htmlFor="environment" className="text-sm font-medium">
-                          Miljø:
-                        </Label>
-                        <Select
-                          value={selectedEnvironment}
-                          onValueChange={(value: Environment) => setSelectedEnvironment(value)}
-                        >
-                          <SelectTrigger id="environment" className="w-24 h-8 text-sm">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="at22">AT22</SelectItem>
-                            <SelectItem value="tt02">TT02</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    </div>
-                    <Card className="bg-background border rounded-xl">
-                      <CardContent className="p-4 space-y-4">
-                        <div className="grid gap-3">
-                          <div className="flex flex-col sm:flex-row sm:justify-between gap-2">
-                            <span className="text-muted-foreground font-medium">Fødselsnummer:</span>
-                            <span className="font-mono font-medium bg-background px-3 py-1 rounded-lg border">
-                              {testData.dagligLeder.foedselsnummer}
-                            </span>
-                          </div>
-                          <div className="flex flex-col sm:flex-row sm:justify-between gap-2">
-                            <span className="text-muted-foreground font-medium">Organisasjonsnummer:</span>
-                            <span className="font-mono font-medium bg-background px-3 py-1 rounded-lg border">
-                              {testData.dagligLeder.organisasjonsnummer}
-                            </span>
-                          </div>
-                          {testData.dagligLeder.organisasjonsnavn && (
-                            <div className="flex flex-col sm:flex-row sm:justify-between gap-2">
-                              <span className="text-muted-foreground font-medium">Organisasjonsnavn:</span>
-                              <span className="font-medium bg-primary/5 text-primary px-3 py-1 rounded-lg border border-primary/20">
-                                {testData.dagligLeder.organisasjonsnavn}
-                              </span>
-                            </div>
-                          )}
-                        </div>
-                        <div className="pt-2">
-                          <Button
-                            onClick={handleCreateSystemUser}
-                            disabled={isCreatingSystemUser}
-                            className="w-full min-h-[44px] bg-primary hover:bg-primary/90 rounded-xl shadow-sm hover:shadow-md transition-all duration-200"
+                <div className="space-y-0">
+                  <div className="py-3 px-1">
+                    <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 text-sm">
+                          <span className="font-medium truncate">{testData.dagligLeder.organisasjonsnavn}</span>
+                          <button
+                            onClick={() => navigator.clipboard.writeText(testData.dagligLeder.organisasjonsnavn)}
+                            className="opacity-60 hover:opacity-100 p-1"
+                            title="Kopier organisasjonsnavn"
                           >
-                            Opprett Systembruker med tilgangspakke{" "}
-                            {selectedRole && accessPackageMapping[selectedRole]
-                              ? accessPackageMapping[selectedRole].displayName
-                              : "Valgt pakke"}
-                          </Button>
+                            <Copy className="h-3 w-3" />
+                          </button>
                         </div>
-                      </CardContent>
-                    </Card>
-                  </div>
-
-                  <Separator className="my-6" />
-
-                  <div className="space-y-4">
-                    <h3 className="flex items-center gap-3">
-                      <div className="p-1.5 bg-secondary/10 rounded-lg">
-                        <Building2 className="h-4 w-4 text-secondary" />
+                        <div className="flex items-center gap-2 text-xs text-muted-foreground mt-1">
+                          <span className="font-mono">{testData.dagligLeder.organisasjonsnummer}</span>
+                          <button
+                            onClick={() => navigator.clipboard.writeText(testData.dagligLeder.organisasjonsnummer)}
+                            className="opacity-60 hover:opacity-100 p-1"
+                            title="Kopier organisasjonsnummer"
+                          >
+                            <Copy className="h-3 w-3" />
+                          </button>
+                          <span className="font-mono">{testData.dagligLeder.foedselsnummer}</span>
+                          <button
+                            onClick={() => navigator.clipboard.writeText(testData.dagligLeder.foedselsnummer)}
+                            className="opacity-60 hover:opacity-100 p-1"
+                            title="Kopier fødselsnummer"
+                          >
+                            <Copy className="h-3 w-3" />
+                          </button>
+                        </div>
                       </div>
-                      Klienter
-                      <Badge variant="outline" className="ml-2 px-2 py-1 rounded-lg">
-                        {testData.clients.length}
-                      </Badge>
-                    </h3>
-                    <div className="grid gap-3">
-                      {testData.clients.map((client, index) => (
-                        <Card key={index} className="bg-background border rounded-xl hover:shadow-sm transition-shadow">
-                          <CardContent className="p-4">
-                            <div className="space-y-2">
-                              <div className="flex flex-col sm:flex-row sm:justify-between gap-1">
-                                <span className="text-muted-foreground font-medium">Navn:</span>
-                                <span className="font-medium text-foreground">{client.navn}</span>
-                              </div>
-                              <div className="flex flex-col sm:flex-row sm:justify-between gap-1">
-                                <span className="text-muted-foreground font-medium">Organisasjonsnummer:</span>
-                                <span className="font-mono font-medium bg-muted px-3 py-1 rounded-lg border">
-                                  {client.organisasjonsnummer}
-                                </span>
-                              </div>
-                            </div>
-                          </CardContent>
-                        </Card>
-                      ))}
+
+                      <div className="flex gap-2">
+                        <Button
+                          onClick={handlePreviewSystemUser}
+                          variant="outline"
+                          size="sm"
+                          className="text-xs bg-transparent"
+                        >
+                          Vis eksempel-forespørsel
+                        </Button>
+                        <Button onClick={handleCreateSystemUser} size="sm" className="text-xs">
+                          Opprett systembruker
+                        </Button>
+                      </div>
                     </div>
                   </div>
-                </CardContent>
-              </Card>
+                  <div className="border-b border-border/30"></div>
+                </div>
+
+                <div className="flex items-center gap-3 mt-6">
+                  <div className="p-1.5 bg-primary/10 rounded-lg">
+                    <Users className="h-4 w-4 text-primary" />
+                  </div>
+                  <h3 className="text-lg font-semibold">Klienter</h3>
+                </div>
+
+                <div className="space-y-0">
+                  {testData.clients.map((client, index) => (
+                    <div key={index}>
+                      <div className="py-3 px-1">
+                        <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4">
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 text-sm">
+                              <span className="font-medium truncate">{client.navn}</span>
+                              <button
+                                onClick={() => navigator.clipboard.writeText(client.navn)}
+                                className="opacity-60 hover:opacity-100 p-1"
+                                title="Kopier navn"
+                              >
+                                <Copy className="h-3 w-3" />
+                              </button>
+                            </div>
+                            <div className="flex items-center gap-2 text-xs text-muted-foreground mt-1">
+                              <span className="font-mono">{client.organisasjonsnummer}</span>
+                              <button
+                                onClick={() => navigator.clipboard.writeText(client.organisasjonsnummer)}
+                                className="opacity-60 hover:opacity-100 p-1"
+                                title="Kopier organisasjonsnummer"
+                              >
+                                <Copy className="h-3 w-3" />
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                      {index < testData.clients.length - 1 && <div className="border-b border-border/30"></div>}
+                    </div>
+                  ))}
+                </div>
+              </div>
             </section>
           )}
         </div>
@@ -1150,12 +1177,14 @@ export default function TestDataInterface() {
           )}
         </DialogContent>
       </Dialog>
+
       <Dialog open={virksomhetsbrukerModalOpen} onOpenChange={setVirksomhetsbrukerModalOpen}>
         <DialogContent className="max-w-[95vw] sm:max-w-lg md:max-w-xl lg:max-w-2xl max-h-[90vh] overflow-y-auto mx-4">
           <DialogHeader>
-            <DialogTitle>Opprett Virksomhetsbruker</DialogTitle>
-            <DialogDescription className="break-words">
-              Oppretter virksomhetsbruker for {selectedLeader?.organisasjonsnavn || selectedLeader?.organisasjonsnummer}
+            <DialogTitle>Opprett Systembruker for Virksomheten</DialogTitle>
+            <DialogDescription>
+              Oppretter systembruker for virksomheten{" "}
+              {selectedLeader?.organisasjonsnavn || selectedLeader?.organisasjonsnummer}
             </DialogDescription>
           </DialogHeader>
 
@@ -1183,17 +1212,6 @@ export default function TestDataInterface() {
 
           {virksomhetsbrukerResponse && selectedLeader && (
             <div className="space-y-4 py-4">
-              <div className="space-y-2">
-                <span className="font-medium">Tilgangspakker:</span>
-                <div className="flex flex-wrap gap-2">
-                  {selectedAccessPackages.map((pkg) => (
-                    <Badge key={pkg.urn} variant="outline" className="text-xs break-words">
-                      {pkg.displayName}
-                    </Badge>
-                  ))}
-                </div>
-              </div>
-
               <div className="p-3 bg-green-50 border border-green-200 rounded-lg">
                 <p className="text-green-800 font-medium text-sm">
                   Logg inn med fødselsnummer{" "}
@@ -1205,7 +1223,7 @@ export default function TestDataInterface() {
 
               <Button asChild className="w-full text-base sm:text-lg">
                 <a href={virksomhetsbrukerResponse.confirmUrl} target="_blank" rel="noopener noreferrer">
-                  Logg inn i Altinn for å godkjenne Virksomhetsbruker
+                  Logg inn i Altinn for å godkjenne Systembruker
                   <ExternalLink className="ml-2 h-4 w-4" />
                 </a>
               </Button>
@@ -1213,8 +1231,7 @@ export default function TestDataInterface() {
               <div className="pt-4 border-t space-y-3">
                 <div className="p-4 bg-gray-50 border border-gray-200 rounded-lg">
                   <p className="text-gray-800 text-sm">
-                    Etter virksomhetsbruker er godkjent kan du sjekke Virksomhetsbrukeren. Husk å velge aktør
-                    (organisasjon{" "}
+                    Etter systembruker er godkjent kan du sjekke Systembrukeren. Husk å velge aktør (organisasjon{" "}
                     <span className="bg-gray-100 px-2 py-1 rounded font-mono font-bold border border-gray-300">
                       {selectedLeader.organisasjonsnummer} - {selectedLeader.organisasjonsnavn}
                     </span>
@@ -1245,6 +1262,54 @@ export default function TestDataInterface() {
           )}
         </DialogContent>
       </Dialog>
+
+      <Dialog open={showPreviewModal} onOpenChange={setShowPreviewModal}>
+        <DialogContent className="max-w-[95vw] sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Eksempel på forespørsel</DialogTitle>
+            <DialogDescription>Dette er et eksempel på hvordan forespørselen vil se ut.</DialogDescription>
+          </DialogHeader>
+          <pre className="rounded-md bg-muted p-4 font-mono text-sm">
+            {previewRequestBody ? JSON.stringify(previewRequestBody, null, 2) : "Ingen data tilgjengelig."}
+          </pre>
+        </DialogContent>
+      </Dialog>
+
+      <div className="fixed bottom-0 left-0 w-full bg-background/80 backdrop-blur-sm border-t z-50">
+        <div className="container mx-auto px-6 py-3 flex items-center justify-between">
+          <div className="flex items-center gap-3 text-sm text-muted-foreground">
+            <Badge variant="secondary">v0.0.1</Badge>
+            {envVarsReady ? (
+              <div className="flex items-center gap-1 text-green-500">
+                <CheckCircle2 className="h-4 w-4" />
+                <span>Environment variables ready</span>
+              </div>
+            ) : (
+              <div className="flex items-center gap-1 text-orange-500">
+                <AlertCircle className="h-4 w-4" />
+                <span>Environment variables not ready</span>
+              </div>
+            )}
+          </div>
+
+          <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2">
+              <label htmlFor="environment" className="text-sm font-medium text-muted-foreground">
+                Environment:
+              </label>
+              <select
+                id="environment"
+                className="bg-background border border-input rounded-md px-2 py-1 text-sm"
+                value={selectedEnvironment}
+                onChange={(e) => setSelectedEnvironment(e.target.value as Environment)}
+              >
+                <option value="at22">AT22</option>
+                <option value="tt02">TT02</option>
+              </select>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   )
 }

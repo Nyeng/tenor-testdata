@@ -857,28 +857,70 @@ export default function TestDataInterface() {
                 </div>
 
                 <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <Download className="h-5 w-5 text-blue-600" />
-                      <span className="font-medium text-blue-900">Eksporter organisasjonsnumre</span>
-                    </div>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => {
-                        const orgNumbers = dagligLederData.leaders.map((leader) => `'${leader.organisasjonsnummer}'`)
-                        const arrayString = `[${orgNumbers.join(", ")}];`
-                        navigator.clipboard.writeText(arrayString)
-                        // Simple feedback - could be enhanced with toast
-                        console.log("[v0] Copied organization numbers to clipboard:", arrayString)
-                      }}
-                      className="flex items-center gap-2"
-                    >
-                      <Copy className="h-4 w-4" />
-                      Kopier alle ({dagligLederData.leaders.length})
-                    </Button>
+                  <div className="flex items-center gap-2 mb-3">
+                    <Download className="h-5 w-5 text-blue-600" />
+                    <span className="font-medium text-blue-900">Eksporter data</span>
                   </div>
-                  <p className="text-sm text-blue-700 mt-2">Kopierer alle organisasjonsnumre som en JavaScript array</p>
+
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-blue-700">Kopier alle organisasjonsnumre som JavaScript array</span>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          const orgNumbers = dagligLederData.leaders.map((leader) => `'${leader.organisasjonsnummer}'`)
+                          const arrayString = `[${orgNumbers.join(", ")}];`
+                          navigator.clipboard.writeText(arrayString)
+                          console.log("[v0] Copied organization numbers to clipboard:", arrayString)
+                        }}
+                        className="flex items-center gap-2"
+                      >
+                        <Copy className="h-4 w-4" />
+                        Kopier alle orgnummer ({dagligLederData.leaders.length})
+                      </Button>
+                    </div>
+
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-blue-700">Kopier alle fødselsnumre som JavaScript array</span>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          const socialNumbers = dagligLederData.leaders.map((leader) => `'${leader.foedselsnummer}'`)
+                          const arrayString = `[${socialNumbers.join(", ")}];`
+                          navigator.clipboard.writeText(arrayString)
+                          console.log("[v0] Copied social security numbers to clipboard:", arrayString)
+                        }}
+                        className="flex items-center gap-2"
+                      >
+                        <Copy className="h-4 w-4" />
+                        Kopier alle fødselsnummer ({dagligLederData.leaders.length})
+                      </Button>
+                    </div>
+
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-blue-700">
+                        Kopier kombinert liste med orgnummer og fødselsnummer
+                      </span>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          const combinedList = dagligLederData.leaders.map(
+                            (leader) => `{ org: '${leader.organisasjonsnummer}', ssn: '${leader.foedselsnummer}' }`,
+                          )
+                          const arrayString = `[${combinedList.join(", ")}];`
+                          navigator.clipboard.writeText(arrayString)
+                          console.log("[v0] Copied combined list to clipboard:", arrayString)
+                        }}
+                        className="flex items-center gap-2"
+                      >
+                        <Copy className="h-4 w-4" />
+                        Kopier liste med både orgnummer og fødselsnummer ({dagligLederData.leaders.length})
+                      </Button>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>

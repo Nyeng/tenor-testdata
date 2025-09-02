@@ -19,6 +19,7 @@ import {
   Copy,
   X,
   Package,
+  Download,
 } from "lucide-react"
 
 type Role = "forretningsfoerer" | "revisor" | "regnskapsfoerere" | "dagligLeder"
@@ -353,7 +354,7 @@ export default function TestDataInterface() {
             "Content-Type": "application/json",
           },
           body: JSON.stringify({
-            antall: clientCount,
+            antall: 100,
           }),
         })
 
@@ -853,6 +854,31 @@ export default function TestDataInterface() {
                       </CardContent>
                     </Card>
                   ))}
+                </div>
+
+                <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Download className="h-5 w-5 text-blue-600" />
+                      <span className="font-medium text-blue-900">Eksporter organisasjonsnumre</span>
+                    </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        const orgNumbers = dagligLederData.leaders.map((leader) => `'${leader.organisasjonsnummer}'`)
+                        const arrayString = `[${orgNumbers.join(", ")}];`
+                        navigator.clipboard.writeText(arrayString)
+                        // Simple feedback - could be enhanced with toast
+                        console.log("[v0] Copied organization numbers to clipboard:", arrayString)
+                      }}
+                      className="flex items-center gap-2"
+                    >
+                      <Copy className="h-4 w-4" />
+                      Kopier alle ({dagligLederData.leaders.length})
+                    </Button>
+                  </div>
+                  <p className="text-sm text-blue-700 mt-2">Kopierer alle organisasjonsnumre som en JavaScript array</p>
                 </div>
               </div>
             </div>

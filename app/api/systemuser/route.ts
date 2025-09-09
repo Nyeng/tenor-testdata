@@ -2,23 +2,35 @@ import { type NextRequest, NextResponse } from "next/server"
 
 export async function POST(request: NextRequest) {
   try {
-    const { token, requestBody, environment } = await request.json()
+    const { token, requestBody, environment, endpoint = "agent", selectedIndividualRights = [] } = await request.json()
 
     console.log("[v0] Server-side system user creation request")
     console.log("[v0] Environment:", environment)
+    console.log("[v0] Endpoint:", endpoint)
     console.log("[v0] Request body:", JSON.stringify(requestBody, null, 2))
 
     const baseUrl = environment === "tt02" ? "https://platform.tt02.altinn.no" : "https://platform.at22.altinn.cloud"
 
-    // Updated URL to include /agent at the end
-    const url = `${baseUrl}/authentication/api/v1/systemuser/request/vendor/agent`
+    const url =
+      endpoint === "vendor"
+        ? `${baseUrl}/authentication/api/v1/systemuser/request/vendor`
+        : `${baseUrl}/authentication/api/v1/systemuser/request/vendor/agent`
 
     console.log("[v0] Making request to:", url)
     console.log("[v0] Using token (first 20 chars):", token.substring(0, 20) + "...")
 
+    const mappedRights = selectedIndividualRights.map((right: { name: string; displayName: string }) => ({
+      resource: [
+        {
+          value: right.name, // Extract the name property instead of treating right as a string
+          id: "urn:altinn:resource",
+        },
+      ],
+    }))
+
     const enhancedRequestBody = {
       ...requestBody,
-      Rights: [], // Required field for the API
+      rights: mappedRights, // Use lowercase 'rights' instead of 'Rights'
     }
 
     const response = await fetch(url, {

@@ -20,6 +20,7 @@ import {
   X,
   Package,
   Download,
+  Shield,
 } from "lucide-react"
 
 type Role = "forretningsfoerer" | "revisor" | "regnskapsfoerere" | "dagligLeder"
@@ -52,6 +53,16 @@ interface AccessPackage {
   urn: string
   displayName: string
 }
+
+interface IndividualRight {
+  name: string
+  displayName: string
+}
+
+const individualRights: IndividualRight[] = [
+  { name: "authentication-e2e-test", displayName: "authentication-e2e-test" },
+  { name: "vegardtestressurs", displayName: "vegardtestressurs" },
+]
 
 const accessPackages: AccessPackage[] = [
   { urn: "urn:altinn:accesspackage:ansvarlig-revisor", displayName: "Ansvarlig revisor" },
@@ -299,6 +310,9 @@ export default function TestDataInterface() {
   const [selectedLeader, setSelectedLeader] = useState<DagligLederData["leaders"][0] | null>(null)
   const [selectedAccessPackages, setSelectedAccessPackages] = useState<AccessPackage[]>([])
   const [accessPackageSearch, setAccessPackageSearch] = useState("")
+  const [selectedIndividualRights, setSelectedIndividualRights] = useState<IndividualRight[]>([])
+  const [individualRightSearch, setIndividualRightSearch] = useState("")
+  const [individualRightDropdownOpen, setIndividualRightDropdownOpen] = useState(false)
   const [virksomhetsbrukerModalOpen, setVirksomhetsbrukerModalOpen] = useState(false)
   const [virksomhetsbrukerLoading, setVirksomhetsbrukerLoading] = useState(false)
   const [virksomhetsbrukerResponse, setVirksomhetsbrukerResponse] = useState<SystemUserResponse | null>(null)
@@ -311,8 +325,14 @@ export default function TestDataInterface() {
   const [previewRequestBody, setPreviewRequestBody] = useState<any>(null)
   const [showAccessPackages, setShowAccessPackages] = useState(false)
 
+  const [systembrukerType, setSystembrukerType] = useState<"agent" | "standard">("agent")
+
   const filteredAccessPackages = accessPackages.filter(
     (pkg) => pkg && pkg.displayName && pkg.displayName.toLowerCase().includes(accessPackageSearch.toLowerCase()),
+  )
+  const filteredIndividualRights = individualRights.filter(
+    (right) =>
+      right && right.displayName && right.displayName.toLowerCase().includes(individualRightSearch.toLowerCase()),
   )
 
   useEffect(() => {
@@ -335,6 +355,19 @@ export default function TestDataInterface() {
 
     checkEnvVars()
   }, [])
+
+  const handleRoleChange = (role: Role) => {
+    setSelectedRole(role)
+    setAccessPackageSearch("")
+    setIndividualRightSearch("")
+    setSelectedAccessPackages([])
+    setSelectedIndividualRights([])
+    setSystembrukerType("agent") // Reset to agent when switching roles
+    setTestData(null)
+    setDagligLederData(null)
+    setError(null)
+    setLoading(false)
+  }
 
   const handleFetchTestData = async () => {
     if (!selectedRole) return
@@ -482,6 +515,82 @@ export default function TestDataInterface() {
     }
   }
 
+  const handleCreateStandardSystembruker = async (leader: DagligLederData["leaders"][0]) => {
+    if (selectedAccessPackages.length === 0) {
+      setSelectedLeader(leader)
+      setVirksomhetsbrukerModalOpen(true)
+      setVirksomhetsbrukerLoading(false)
+      setVirksomhetsbrukerError("Tilgangspakke må velges før du kan opprette standard systembruker")
+      setVirksomhetsbrukerResponse(null)
+      return
+    }
+
+    setSelectedLeader(leader)
+    setVirksomhetsbrukerModalOpen(true)
+    setVirksomhetsbrukerLoading(true)
+    setVirksomhetsbrukerError(null)
+    setVirksomhetsbrukerResponse(null)
+
+    try {
+      const tokenResponse = await fetch("/api/token", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          orgNo: "312605031",
+          env: selectedEnvironment,
+        }),
+      })
+
+      if (!tokenResponse.ok) {
+        const tokenError = await tokenResponse.json()
+        throw new Error(`Token generation failed: ${tokenError.error}`)
+      }
+
+      const { token } = await tokenResponse.json()
+      console.log("[v0] Token generated successfully for Standard Systembruker, length:", token?.length || 0)
+
+      const standardSystembrukerRequest = {
+        systemId: "312605031_Virksomhetsbruker",
+        partyOrgNo: leader.organisasjonsnummer,
+        externalRef: crypto.randomUUID(),
+        redirectUrl: "",
+        accessPackages: selectedAccessPackages.map((pkg) => ({ urn: pkg.urn })),
+      }
+
+      console.log("[v0] Making Standard Systembruker request via server-side API")
+      console.log("[v0] Standard Systembruker request body:", JSON.stringify(standardSystembrukerRequest, null, 2))
+
+      const standardSystembrukerResponse = await fetch("/api/systemuser", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          token,
+          requestBody: standardSystembrukerRequest,
+          environment: selectedEnvironment,
+          endpoint: "vendor", // Use different endpoint without /agent
+          selectedIndividualRights: selectedIndividualRights,
+        }),
+      })
+
+      if (!standardSystembrukerResponse.ok) {
+        const errorData = await standardSystembrukerResponse.json()
+        throw new Error(errorData.error || "Standard systembruker creation failed")
+      }
+
+      const result = await standardSystembrukerResponse.json()
+      console.log("[v0] Standard systembruker created successfully:", result)
+      setVirksomhetsbrukerResponse(result)
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : "Feil ved opprettelse av standard systembruker"
+      setVirksomhetsbrukerError(errorMessage)
+      console.error("[v0] Standard systembruker creation error:", err)
+    } finally {
+      setVirksomhetsbrukerLoading(false)
+    }
+  }
+
   const handlePreviewVirksomhetsbruker = (leader: DagligLederData["leaders"][0]) => {
     if (selectedAccessPackages.length === 0) {
       setVirksomhetsbrukerError("Tilgangspakke må velges før du kan se eksempel-forespørsel")
@@ -585,16 +694,11 @@ export default function TestDataInterface() {
     setAccessPackageSearch("")
   }
 
-  const handleRoleChange = (role: Role) => {
-    setSelectedRole(role)
-    setAccessPackageSearch("")
-    setAccessPackageDropdownOpen(false)
-    setSelectedAccessPackages([])
-    // Clear all test data when switching categories
-    setTestData(null)
-    setDagligLederData(null)
-    setLoading(false)
-    setError(null)
+  const addIndividualRight = (rightToAdd: IndividualRight) => {
+    if (!selectedIndividualRights.find((right) => right.name === rightToAdd.name)) {
+      setSelectedIndividualRights((prev) => [...prev, rightToAdd])
+    }
+    setIndividualRightSearch("")
   }
 
   return (
@@ -621,7 +725,6 @@ export default function TestDataInterface() {
                   </div>
                   Velg rolle
                 </CardTitle>
-                {/* Updated description to mention system user creation capability */}
                 <CardDescription className="text-muted-foreground">
                   Velg hvilken type organisasjon du vil hente testdata for. Du kan også opprette systembruker for
                   brukeren du henter her for testdataene.
@@ -738,89 +841,193 @@ export default function TestDataInterface() {
                   </div>
                 </div>
 
+                {/* Radio button selection for systembruker type */}
                 <div className="space-y-3">
                   <div className="flex items-center gap-2">
-                    <Package className="h-4 w-4 text-blue-600" />
-                    <span className="font-medium text-blue-900">Velg tilgangspakker (påkrevd)</span>
-                  </div>
-                  <p className="text-sm text-blue-700">
-                    Du må velge minst én tilgangspakke før du kan opprette systembruker.
-                  </p>
-
-                  <div className="relative">
-                    <Input
-                      type="text"
-                      placeholder="Søk etter tilgangspakker..."
-                      value={accessPackageSearch}
-                      onChange={(e) => setAccessPackageSearch(e.target.value)}
-                      onFocus={() => setAccessPackageDropdownOpen(true)}
-                      className="w-full"
-                    />
-                    {accessPackageDropdownOpen && (
-                      <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-md shadow-lg z-50 max-h-64 overflow-y-auto">
-                        {filteredAccessPackages.length > 0 ? (
-                          filteredAccessPackages.map((pkg) => (
-                            <button
-                              key={pkg.urn}
-                              onClick={() => {
-                                addAccessPackage(pkg)
-                                setAccessPackageDropdownOpen(false)
-                              }}
-                              className="w-full text-left px-3 py-2 hover:bg-gray-50 border-b border-gray-100 last:border-b-0"
-                            >
-                              <div className="font-medium text-sm">{pkg.displayName}</div>
-                              <div className="text-xs text-gray-500">{pkg.description}</div>
-                            </button>
-                          ))
-                        ) : (
-                          <div className="px-3 py-2 text-sm text-gray-500">Ingen tilgangspakker funnet</div>
-                        )}
-                      </div>
-                    )}
+                    <Shield className="h-4 w-4 text-green-600" />
+                    <span className="font-medium text-green-900">Velg systembruker type</span>
                   </div>
 
-                  {selectedAccessPackages.length > 0 && (
-                    <div className="space-y-2">
-                      <span className="text-sm font-medium text-green-900">Valgte tilgangspakker:</span>
-                      <div className="flex flex-wrap gap-2">
-                        {selectedAccessPackages.map((pkg) => (
-                          <div
+                  <div className="flex gap-4">
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="radio"
+                        name="systembrukerType"
+                        value="agent"
+                        checked={systembrukerType === "agent"}
+                        onChange={(e) => setSystembrukerType(e.target.value as "agent" | "standard")}
+                        className="text-green-600"
+                      />
+                      <span className="text-sm font-medium text-green-900">Agent systembruker</span>
+                    </label>
+
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="radio"
+                        name="systembrukerType"
+                        value="standard"
+                        checked={systembrukerType === "standard"}
+                        onChange={(e) => setSystembrukerType(e.target.value as "agent" | "standard")}
+                        className="text-green-600"
+                      />
+                      <span className="text-sm font-medium text-green-900">Standard systembruker</span>
+                    </label>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <Package className="h-4 w-4 text-green-600" />
+                  <span className="font-medium text-green-900">Valgte tilgangspakker</span>
+                </div>
+
+                <div className="relative">
+                  <Input
+                    type="text"
+                    placeholder="Søk etter tilgangspakker..."
+                    value={accessPackageSearch}
+                    onChange={(e) => setAccessPackageSearch(e.target.value)}
+                    onFocus={() => setShowAccessPackages(true)}
+                    className="w-full"
+                  />
+                  {showAccessPackages && (
+                    <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-md shadow-lg z-50 max-h-64 overflow-y-auto">
+                      {filteredAccessPackages.length > 0 ? (
+                        filteredAccessPackages.map((pkg) => (
+                          <button
                             key={pkg.urn}
-                            className="flex items-center gap-1 bg-green-100 text-green-800 px-2 py-1 rounded-md text-xs"
+                            onClick={() => {
+                              addAccessPackage(pkg)
+                              setShowAccessPackages(false)
+                            }}
+                            className="w-full text-left px-3 py-2 hover:bg-gray-50 border-b border-gray-100 last:border-b-0"
                           >
-                            <span>{pkg.displayName}</span>
-                            <button
-                              onClick={() =>
-                                setSelectedAccessPackages(
-                                  selectedAccessPackages.filter((selected) => selected.urn !== pkg.urn),
-                                )
-                              }
-                              className="ml-1 hover:bg-green-200 rounded-full p-0.5"
-                            >
-                              <X className="h-3 w-3" />
-                            </button>
-                          </div>
-                        ))}
-                      </div>
+                            <div className="font-medium text-sm">{pkg.displayName}</div>
+                          </button>
+                        ))
+                      ) : (
+                        <div className="px-3 py-2 text-sm text-gray-500">Ingen tilgangspakker funnet</div>
+                      )}
                     </div>
                   )}
+                </div>
 
-                  <div className="flex gap-3 pt-2">
-                    <Button
-                      onClick={() => handlePreviewVirksomhetsbruker(dagligLederData.leaders[0])}
-                      variant="outline"
-                      size="sm"
-                    >
-                      Vis eksempel-forespørsel
-                    </Button>
+                {selectedAccessPackages.length > 0 && (
+                  <div className="space-y-2">
+                    <span className="text-sm font-medium text-green-900">Valgte tilgangspakker:</span>
+                    <div className="flex flex-wrap gap-2">
+                      {selectedAccessPackages.map((pkg) => (
+                        <div
+                          key={pkg.urn}
+                          className="flex items-center gap-1 bg-green-100 text-green-800 px-2 py-1 rounded-md text-xs"
+                        >
+                          <span>{pkg.displayName}</span>
+                          <button
+                            onClick={() =>
+                              setSelectedAccessPackages(
+                                selectedAccessPackages.filter((selected) => selected.urn !== pkg.urn),
+                              )
+                            }
+                            className="ml-1 hover:bg-green-200 rounded-full p-0.5"
+                          >
+                            <X className="h-3 w-3" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {systembrukerType === "standard" && (
+                  <>
+                    <div className="flex items-center gap-2">
+                      <Shield className="h-4 w-4 text-green-600" />
+                      <span className="font-medium text-green-900">Valgte enkeltrettigheter</span>
+                    </div>
+
+                    <div className="relative">
+                      <Input
+                        type="text"
+                        placeholder="Søk etter enkeltrettigheter..."
+                        value={individualRightSearch}
+                        onChange={(e) => setIndividualRightSearch(e.target.value)}
+                        onFocus={() => setIndividualRightDropdownOpen(true)}
+                        className="w-full"
+                      />
+                      {individualRightDropdownOpen && (
+                        <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-md shadow-lg z-50 max-h-64 overflow-y-auto">
+                          {filteredIndividualRights.length > 0 ? (
+                            filteredIndividualRights.map((right) => (
+                              <button
+                                key={right.name}
+                                onClick={() => {
+                                  addIndividualRight(right)
+                                  setIndividualRightDropdownOpen(false)
+                                }}
+                                className="w-full text-left px-3 py-2 hover:bg-gray-50 border-b border-gray-100 last:border-b-0"
+                              >
+                                <div className="font-medium text-sm">{right.displayName}</div>
+                              </button>
+                            ))
+                          ) : (
+                            <div className="px-3 py-2 text-sm text-gray-500">Ingen enkeltrettigheter funnet</div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+
+                    {selectedIndividualRights.length > 0 && (
+                      <div className="space-y-2">
+                        <span className="text-sm font-medium text-green-900">Valgte enkeltrettigheter:</span>
+                        <div className="flex flex-wrap gap-2">
+                          {selectedIndividualRights.map((right) => (
+                            <div
+                              key={right.name}
+                              className="flex items-center gap-1 bg-green-100 text-green-800 px-2 py-1 rounded-md text-xs"
+                            >
+                              <span>{right.displayName}</span>
+                              <button
+                                onClick={() =>
+                                  setSelectedIndividualRights(
+                                    selectedIndividualRights.filter((selected) => selected.name !== right.name),
+                                  )
+                                }
+                                className="ml-1 hover:bg-green-200 rounded-full p-0.5"
+                              >
+                                <X className="h-3 w-3" />
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </>
+                )}
+
+                <div className="flex gap-3 pt-2">
+                  <Button
+                    onClick={() => handlePreviewVirksomhetsbruker(dagligLederData.leaders[0])}
+                    variant="outline"
+                    size="sm"
+                  >
+                    Vis eksempel-forespørsel
+                  </Button>
+                  {systembrukerType === "agent" ? (
                     <Button
                       onClick={() => handleCreateVirksomhetsbruker(dagligLederData.leaders[0])}
-                      className="bg-green-600 hover:bg-green-700 text-white"
-                      size="default"
+                      className="bg-green-600 hover:bg-green-700 text-white text-sm"
+                      size="sm"
                     >
-                      <span className="text-base font-semibold">Opprett systembruker for virksomheten</span>
+                      Opprett agent-systembruker
                     </Button>
-                  </div>
+                  ) : (
+                    <Button
+                      onClick={() => handleCreateStandardSystembruker(dagligLederData.leaders[0])}
+                      className="bg-green-600 hover:bg-green-700 text-white text-sm"
+                      size="sm"
+                    >
+                      Opprett Standard systembruker
+                    </Button>
+                  )}
                 </div>
               </div>
 

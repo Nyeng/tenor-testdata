@@ -1,42 +1,34 @@
 "use client"
 
-import { useState, useEffect } from "react"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { useState, useEffect, useRef } from "react"
 import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
-import { Separator } from "@/components/ui/separator"
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import {
-  Building2,
-  Users,
-  User,
-  Settings,
-  Search,
-  CheckCircle2,
-  ExternalLink,
-  AlertCircle,
-  UserCheck,
-  Copy,
-  X,
-  Package,
-  Download,
-  Shield,
-} from "lucide-react"
+import { Label } from "@/components/ui/label"
+import { Badge } from "@/components/ui/badge"
+import { Building2, Settings, Calculator, User, ChevronDown, ChevronRight, Copy, X } from "lucide-react"
 
-type Role = "forretningsfoerer" | "revisor" | "regnskapsfoerere" | "dagligLeder"
-type Environment = "at22" | "tt02"
+type SystembrukerType = "agent" | "standard"
+type Role = "forretningsfoerer" | "revisor" | "regnskapsfoerere" | "dagligLeder" | "manual"
 
-interface DagligLederData {
-  role: "dagligLeder"
-  leaders: Array<{
-    foedselsnummer: string
-    organisasjonsnummer: string
-    organisasjonsnavn?: string
-  }>
+interface AccessPackage {
+  urn: string
+  displayName: string
 }
 
-interface TestData {
-  role: Exclude<Role, "dagligLeder">
+interface IndividualRight {
+  name: string
+  displayName: string
+}
+
+interface TestDataEntry {
+  organisasjonsnavn: string
+  organisasjonsnummer: string
+  foedselsnummer: string
+}
+
+interface TestDataResponse {
+  role: string
   orgnummer: string
   dagligLeder: {
     foedselsnummer: string
@@ -49,25 +41,28 @@ interface TestData {
   }>
 }
 
-interface AccessPackage {
-  urn: string
-  displayName: string
+interface DagligLederResponse {
+  leaders: Array<{
+    organisasjonsnummer: string
+    organisasjonsnavn: string
+    foedselsnummer: string
+  }>
 }
 
-interface IndividualRight {
-  name: string
-  displayName: string
+interface CreationResult {
+  id: string
+  confirmUrl: string
+  partyOrgNo: string
+  status: string
+  systemId: string
 }
-
-const individualRights: IndividualRight[] = [
-  { name: "authentication-e2e-test", displayName: "authentication-e2e-test" },
-  { name: "vegardtestressurs", displayName: "vegardtestressurs" },
-]
 
 const accessPackages: AccessPackage[] = [
   { urn: "urn:altinn:accesspackage:ansvarlig-revisor", displayName: "Ansvarlig revisor" },
   { urn: "urn:altinn:accesspackage:forretningsforer-eiendom", displayName: "Forretningsfører eiendom" },
   { urn: "urn:altinn:accesspackage:regnskapsforer-lonn", displayName: "Regnskapsfører lønn" },
+  { urn: "urn:altinn:accesspackage:konkursbo-tilgangsstyrer", displayName: "Konkursbo tilgangsstyrer" },
+  { urn: "urn:altinn:accesspackage:hovedadministrator", displayName: "Hovedadministrator" },
   { urn: "urn:altinn:accesspackage:konkursbo-lesetilgang", displayName: "Konkursbo lesetilgang" },
   { urn: "urn:altinn:accesspackage:konkursbo-skrivetilgang", displayName: "Konkursbo skrivetilgang" },
   { urn: "urn:altinn:accesspackage:jordbruk", displayName: "Jordbruk" },
@@ -237,299 +232,250 @@ const accessPackages: AccessPackage[] = [
   { urn: "urn:altinn:accesspackage:maskinporten-scopes-nuf", displayName: "Maskinporten scopes NUF" },
 ]
 
-interface SystemUserResponse {
-  id: string
-  externalRef: string
-  systemId: string
-  partyOrgNo: string
-  accessPackages: Array<{
-    urn: string
-  }>
-  status: string
-  redirectUrl: string
-  confirmUrl: string
+const individualRights: IndividualRight[] = [
+  { name: "authentication-e2e-test", displayName: "authentication-e2e-test" },
+  { name: "vegardtestressurs", displayName: "vegardtestressurs" },
+]
+
+const roleConfig = {
+  forretningsfoerer: { name: "Forretningsfører", icon: Building2, color: "bg-blue-500" },
+  revisor: { name: "Revisor", icon: Settings, color: "bg-green-500" },
+  regnskapsfoerere: { name: "Regnskapsfører", icon: Calculator, color: "bg-purple-500" },
+  dagligLeder: { name: "Daglig leder", icon: User, color: "bg-orange-500" },
+  manual: { name: "Bruk eget orgnr", icon: User, color: "bg-gray-500" },
 }
 
-const accessPackageMapping = {
-  revisor: {
-    urn: "urn:altinn:accesspackage:ansvarlig-revisor",
-    displayName: "Ansvarlig revisor",
-  },
+const roleAccessPackageMapping = {
   forretningsfoerer: {
     urn: "urn:altinn:accesspackage:forretningsforer-eiendom",
     displayName: "Forretningsfører eiendom",
   },
-  regnskapsfoerere: {
-    urn: "urn:altinn:accesspackage:regnskapsforer-lonn",
-    displayName: "Regnskapsfører lønn",
-  },
+  revisor: { urn: "urn:altinn:accesspackage:ansvarlig-revisor", displayName: "Ansvarlig revisor" },
+  regnskapsfoerere: { urn: "urn:altinn:accesspackage:regnskapsforer-lonn", displayName: "Regnskapsfører lønn" },
 }
 
-const roleConfig = {
-  forretningsfoerer: {
-    name: "Forretningsfører",
-    description: "Administrerer forretningsvirksomhet",
-    color: "bg-blue-500",
-    icon: Building2,
-  },
-  revisor: {
-    name: "Revisor",
-    description: "Utfører revisjonstjenester",
-    color: "bg-green-500",
-    icon: Settings,
-  },
-  regnskapsfoerere: {
-    name: "Regnskapsfører",
-    description: "Håndterer regnskapsføring",
-    color: "bg-purple-500",
-    icon: Users,
-  },
-  dagligLeder: {
-    name: "Daglig leder",
-    description: "Daglig leder av virksomhet",
-    color: "bg-orange-500",
-    icon: UserCheck,
-  },
-}
-
-export default function TestDataInterface() {
-  const [selectedRole, setSelectedRole] = useState<Role | null>(null)
-  const [testData, setTestData] = useState<TestData | null>(null)
-  const [dagligLederData, setDagligLederData] = useState<DagligLederData | null>(null)
-  const [clientCount, setClientCount] = useState(10)
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const [envVarsReady, setEnvVarsReady] = useState(false)
-
-  const [selectedEnvironment, setSelectedEnvironment] = useState<Environment>("at22")
-  const [systemUserModalOpen, setSystemUserModalOpen] = useState(false)
-  const [systemUserLoading, setSystemUserLoading] = useState(false)
-  const [systemUserResponse, setSystemUserResponse] = useState<SystemUserResponse | null>(null)
-  const [systemUserError, setSystemUserError] = useState<string | null>(null)
-
-  const [selectedLeader, setSelectedLeader] = useState<DagligLederData["leaders"][0] | null>(null)
+export default function SystembrukerTool() {
+  const [systembrukerType, setSystembrukerType] = useState<SystembrukerType>("agent")
+  const [selectedRole, setSelectedRole] = useState<Role>("forretningsfoerer")
+  const [showRoleDropdown, setShowRoleDropdown] = useState(false)
+  const [manualOrgNr, setManualOrgNr] = useState("")
+  const [manualFnr, setManualFnr] = useState("")
+  const [editableOrgNr, setEditableOrgNr] = useState("")
   const [selectedAccessPackages, setSelectedAccessPackages] = useState<AccessPackage[]>([])
-  const [accessPackageSearch, setAccessPackageSearch] = useState("")
   const [selectedIndividualRights, setSelectedIndividualRights] = useState<IndividualRight[]>([])
+  const [accessPackageSearch, setAccessPackageSearch] = useState("")
   const [individualRightSearch, setIndividualRightSearch] = useState("")
-  const [individualRightDropdownOpen, setIndividualRightDropdownOpen] = useState(false)
-  const [virksomhetsbrukerModalOpen, setVirksomhetsbrukerModalOpen] = useState(false)
-  const [virksomhetsbrukerLoading, setVirksomhetsbrukerLoading] = useState(false)
-  const [virksomhetsbrukerResponse, setVirksomhetsbrukerResponse] = useState<SystemUserResponse | null>(null)
-  const [virksomhetsbrukerError, setVirksomhetsbrukerError] = useState<string | null>(null)
+  const [showAccessPackageDropdown, setShowAccessPackageDropdown] = useState(false)
+  const [showIndividualRightDropdown, setShowIndividualRightDropdown] = useState(false)
 
-  const [accessPackageDropdownOpen, setAccessPackageDropdownOpen] = useState(false)
-  const [isCreatingSystemUser, setIsCreatingSystemUser] = useState(false)
+  // Testdata state
+  const [testData, setTestData] = useState<{ [key: string]: TestDataEntry[] }>({})
+  const [expandedPanels, setExpandedPanels] = useState<{ [key: string]: boolean }>({})
+  const [loading, setLoading] = useState(false)
 
-  const [showPreviewModal, setShowPreviewModal] = useState(false)
-  const [previewRequestBody, setPreviewRequestBody] = useState<any>(null)
-  const [showAccessPackages, setShowAccessPackages] = useState(false)
+  // Environment and creation state
+  const [selectedEnvironment, setSelectedEnvironment] = useState("TT02")
+  const [isCreating, setIsCreating] = useState(false)
+  const [creationHistory, setCreationHistory] = useState<any[]>([])
+  const [showResultModal, setShowResultModal] = useState(false)
+  const [creationResult, setCreationResult] = useState<CreationResult | null>(null)
 
-  const [systembrukerType, setSystembrukerType] = useState<"agent" | "standard">("agent")
+  // Error state management
+  const [error, setError] = useState<{
+    title: string
+    message: string
+    details?: string
+    code?: string
+    environment?: string
+  } | null>(null)
+  const [showErrorModal, setShowErrorModal] = useState(false)
 
-  const filteredAccessPackages = accessPackages.filter(
-    (pkg) => pkg && pkg.displayName && pkg.displayName.toLowerCase().includes(accessPackageSearch.toLowerCase()),
-  )
-  const filteredIndividualRights = individualRights.filter(
-    (right) =>
-      right && right.displayName && right.displayName.toLowerCase().includes(individualRightSearch.toLowerCase()),
-  )
+  const accessPackageDropdownRef = useRef<HTMLDivElement>(null)
+  const individualRightDropdownRef = useRef<HTMLDivElement>(null)
+  const roleDropdownRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
-    const checkEnvVars = async () => {
-      try {
-        const response = await fetch("/api/testdata", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ role: "forretningsfoerer", clientCount: 1 }),
-        })
+    loadTestData()
+  }, [])
 
-        if (response.status !== 400) {
-          setEnvVarsReady(true)
-        }
-      } catch (error) {
-        console.log("[v0] Environment variables not ready yet")
-        setEnvVarsReady(false)
+  useEffect(() => {
+    setEditableOrgNr("")
+  }, [selectedRole])
+
+  useEffect(() => {
+    if (systembrukerType === "agent" && selectedRole in roleAccessPackageMapping) {
+      const mappedPackage = roleAccessPackageMapping[selectedRole as keyof typeof roleAccessPackageMapping]
+      // Reset existing selections and add the new mapped package
+      setSelectedAccessPackages([mappedPackage])
+    } else if (systembrukerType === "agent") {
+      // Reset selections for roles without auto-mapping (like dagligLeder, manual)
+      setSelectedAccessPackages([])
+    }
+  }, [selectedRole, systembrukerType])
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as HTMLElement
+
+      // Don't close if clicking on chip X buttons
+      if (target.closest(".chip-remove-button")) {
+        return
+      }
+
+      // Close access package dropdown if clicking outside
+      if (accessPackageDropdownRef.current && !accessPackageDropdownRef.current.contains(target)) {
+        setShowAccessPackageDropdown(false)
+      }
+
+      // Close individual rights dropdown if clicking outside
+      if (individualRightDropdownRef.current && !individualRightDropdownRef.current.contains(target)) {
+        setShowIndividualRightDropdown(false)
+      }
+
+      if (roleDropdownRef.current && !roleDropdownRef.current.contains(target)) {
+        setShowRoleDropdown(false)
       }
     }
 
-    checkEnvVars()
+    document.addEventListener("mousedown", handleClickOutside)
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside)
+    }
   }, [])
 
-  const handleRoleChange = (role: Role) => {
-    setSelectedRole(role)
-    setAccessPackageSearch("")
-    setIndividualRightSearch("")
-    setSelectedAccessPackages([])
-    setSelectedIndividualRights([])
-    setSystembrukerType("agent") // Reset to agent when switching roles
-    setTestData(null)
-    setDagligLederData(null)
-    setError(null)
-    setLoading(false)
-  }
-
-  const handleFetchTestData = async () => {
-    if (!selectedRole) return
-
+  const loadTestData = async () => {
     setLoading(true)
-    setError(null)
-    setTestData(null)
-    setDagligLederData(null)
-
     try {
-      if (selectedRole === "dagligLeder") {
-        console.log("[v0] Fetching Daglig leder data with count:", clientCount)
+      const roles = ["forretningsfoerer", "revisor", "regnskapsfoerere"]
+      const testDataResults: { [key: string]: TestDataEntry[] } = {}
 
+      for (const role of roles) {
+        try {
+          const response = await fetch("/api/testdata", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ role, clientCount: 10 }),
+          })
+
+          if (response.ok) {
+            const data: TestDataResponse = await response.json()
+            testDataResults[role] = data.clients.map((client) => ({
+              organisasjonsnavn: client.navn,
+              organisasjonsnummer: client.organisasjonsnummer,
+              foedselsnummer: data.dagligLeder.foedselsnummer,
+            }))
+          }
+        } catch (error) {
+          console.error(`Failed to load ${role} testdata:`, error)
+        }
+      }
+
+      // Load daglig leder data
+      try {
         const response = await fetch("/api/daglig-leder", {
           method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            antall: 100,
-          }),
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ antall: 10 }),
         })
 
-        if (!response.ok) {
-          const errorData = await response.json()
-          throw new Error(errorData.error || "Failed to fetch daglig leder data")
+        if (response.ok) {
+          const data: DagligLederResponse = await response.json()
+          testDataResults.dagligLeder = data.leaders.map((leader) => ({
+            organisasjonsnavn: leader.organisasjonsnavn,
+            organisasjonsnummer: leader.organisasjonsnummer,
+            foedselsnummer: leader.foedselsnummer,
+          }))
         }
-
-        const data = await response.json()
-        console.log("[v0] Received daglig leder data:", data)
-        setDagligLederData(data)
-      } else {
-        const clientCount = 100
-        console.log("[v0] Calling API with role:", selectedRole, "clientCount:", clientCount)
-
-        const response = await fetch("/api/testdata", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            role: selectedRole,
-            clientCount: clientCount,
-          }),
-        })
-
-        if (!response.ok) {
-          const errorData = await response.json()
-          throw new Error(errorData.error || "Failed to fetch test data")
-        }
-
-        const data = await response.json()
-        console.log("[v0] Received test data:", data)
-        setTestData(data)
+      } catch (error) {
+        console.error("Failed to load daglig leder testdata:", error)
       }
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : "Feil ved henting av testdata"
-      setError(errorMessage)
-      console.error("[v0] Error fetching test data:", err)
+
+      setTestData(testDataResults)
     } finally {
       setLoading(false)
     }
   }
 
-  const handlePreviewSystemUser = () => {
-    if (!testData || !selectedRole || selectedRole === "dagligLeder") return
+  const getCurrentOrgNr = () => {
+    if (selectedRole === "manual") return manualOrgNr
+    if (editableOrgNr) return editableOrgNr
+    const roleData = testData[selectedRole]
+    return roleData?.[0]?.organisasjonsnummer || ""
+  }
 
-    const requestBody = {
+  const getCurrentFnr = () => {
+    if (selectedRole === "manual") return manualFnr
+    if (editableOrgNr) return ""
+    const roleData = testData[selectedRole]
+    return roleData?.[0]?.foedselsnummer || ""
+  }
+
+  const getCurrentOrgName = () => {
+    if (selectedRole === "manual" || editableOrgNr) return ""
+    const roleData = testData[selectedRole]
+    return roleData?.[0]?.organisasjonsnavn || ""
+  }
+
+  const generateJsonPayload = () => {
+    const getSystemId = () => {
+      return "312605031_Virksomhetsbruker"
+    }
+
+    const basePayload = {
       externalRef: crypto.randomUUID(),
-      systemId: "312605031_SystemtilgangKlientDelegering",
-      partyOrgNo: testData.dagligLeder.organisasjonsnummer,
-      accessPackages: [{ urn: accessPackageMapping[selectedRole].urn }],
+      systemId: getSystemId(),
+      partyOrgNo: getCurrentOrgNr(),
+      accessPackages: selectedAccessPackages.map((pkg) => ({ urn: pkg.urn })),
+      status: "New",
       redirectUrl: "",
     }
 
-    setPreviewRequestBody(requestBody)
-    setShowPreviewModal(true)
-  }
-
-  const handleCreateSystemUser = async () => {
-    if (!testData || !selectedRole || selectedRole === "dagligLeder") return
-
-    setSystemUserModalOpen(true)
-    setSystemUserLoading(true)
-    setSystemUserError(null)
-    setSystemUserResponse(null)
-    setIsCreatingSystemUser(true)
-
-    try {
-      const tokenResponse = await fetch("/api/token", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          orgNo: "312605031",
-          env: selectedEnvironment,
-        }),
-      })
-
-      if (!tokenResponse.ok) {
-        const tokenError = await tokenResponse.json()
-        throw new Error(`Token generation failed: ${tokenError.error}`)
+    if (systembrukerType === "standard" && selectedIndividualRights.length > 0) {
+      return {
+        ...basePayload,
+        rights: selectedIndividualRights.map((right) => ({
+          resource: [
+            {
+              value: right.name,
+              id: "urn:altinn:resource",
+            },
+          ],
+        })),
       }
-
-      const { token } = await tokenResponse.json()
-      console.log("[v0] Token generated successfully, length:", token?.length || 0)
-
-      const systemUserRequest = {
-        externalRef: crypto.randomUUID(),
-        systemId: "312605031_SystemtilgangKlientDelegering",
-        partyOrgNo: testData.dagligLeder.organisasjonsnummer,
-        accessPackages: [{ urn: accessPackageMapping[selectedRole].urn }],
-        redirectUrl: "",
-      }
-
-      console.log("[v0] Making system user request via server-side API")
-      console.log("[v0] System user request body:", JSON.stringify(systemUserRequest, null, 2))
-
-      const systemUserResponse = await fetch("/api/systemuser", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          token,
-          requestBody: systemUserRequest,
-          environment: selectedEnvironment,
-        }),
-      })
-
-      if (!systemUserResponse.ok) {
-        const errorData = await systemUserResponse.json()
-        throw new Error(errorData.error || "System user creation failed")
-      }
-
-      const result = await systemUserResponse.json()
-      console.log("[v0] System user created successfully:", result)
-      setSystemUserResponse(result)
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : "Feil ved opprettelse av systembruker"
-      setSystemUserError(errorMessage)
-      console.error("[v0] System user creation error:", err)
-    } finally {
-      setSystemUserLoading(false)
-      setIsCreatingSystemUser(false)
     }
+
+    return basePayload
   }
 
-  const handleCreateStandardSystembruker = async (leader: DagligLederData["leaders"][0]) => {
-    if (selectedAccessPackages.length === 0) {
-      setSelectedLeader(leader)
-      setVirksomhetsbrukerModalOpen(true)
-      setVirksomhetsbrukerLoading(false)
-      setVirksomhetsbrukerError("Tilgangspakke må velges før du kan opprette standard systembruker")
-      setVirksomhetsbrukerResponse(null)
+  const handleCreateSystembruker = async () => {
+    if (!getCurrentOrgNr()) {
+      setError({
+        title: "Validering feilet",
+        message: "Organisasjonsnummer må fylles ut",
+      })
+      setShowErrorModal(true)
       return
     }
 
-    setSelectedLeader(leader)
-    setVirksomhetsbrukerModalOpen(true)
-    setVirksomhetsbrukerLoading(true)
-    setVirksomhetsbrukerError(null)
-    setVirksomhetsbrukerResponse(null)
+    if (selectedAccessPackages.length === 0 && selectedIndividualRights.length === 0) {
+      setError({
+        title: "Validering feilet",
+        message: "Minst én tilgangspakke eller enkeltrettighet må velges",
+      })
+      setShowErrorModal(true)
+      return
+    }
+
+    setIsCreating(true)
+    setError(null)
+
+    const endpoint = systembrukerType === "agent" ? "agent" : "vendor"
+    console.log("[v0] Frontend - Systembruker type:", systembrukerType)
+    console.log("[v0] Frontend - Endpoint to be used:", endpoint)
+    console.log(
+      "[v0] Frontend - Selected access packages:",
+      selectedAccessPackages.map((p) => p.displayName),
+    )
 
     try {
       const tokenResponse = await fetch("/api/token", {
@@ -537,1042 +483,522 @@ export default function TestDataInterface() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           orgNo: "312605031",
-          env: selectedEnvironment,
+          env: selectedEnvironment.toLowerCase(),
         }),
       })
 
       if (!tokenResponse.ok) {
-        const tokenError = await tokenResponse.json()
-        throw new Error(`Token generation failed: ${tokenError.error}`)
+        let errorText = `HTTP ${tokenResponse.status} - ${tokenResponse.statusText}`
+        try {
+          const errorData = await tokenResponse.text()
+          errorText = errorData
+        } catch {
+          // Keep the HTTP status if we can't parse the response
+        }
+
+        setError({
+          title: "Token generation failed",
+          message: errorText,
+        })
+        setShowErrorModal(true)
+        return
       }
 
       const { token } = await tokenResponse.json()
-      console.log("[v0] Token generated successfully for Standard Systembruker, length:", token?.length || 0)
+      const payload = generateJsonPayload()
 
-      const standardSystembrukerRequest = {
-        systemId: "312605031_Virksomhetsbruker",
-        partyOrgNo: leader.organisasjonsnummer,
-        externalRef: crypto.randomUUID(),
-        redirectUrl: "",
-        accessPackages: selectedAccessPackages.map((pkg) => ({ urn: pkg.urn })),
-      }
-
-      console.log("[v0] Making Standard Systembruker request via server-side API")
-      console.log("[v0] Standard Systembruker request body:", JSON.stringify(standardSystembrukerRequest, null, 2))
-
-      const standardSystembrukerResponse = await fetch("/api/systemuser", {
+      const response = await fetch("/api/systemuser", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           token,
-          requestBody: standardSystembrukerRequest,
-          environment: selectedEnvironment,
-          endpoint: "vendor", // Use different endpoint without /agent
+          requestBody: payload,
+          environment: selectedEnvironment.toLowerCase(),
+          endpoint: endpoint, // Use the endpoint variable for clarity
           selectedIndividualRights: selectedIndividualRights,
         }),
       })
 
-      if (!standardSystembrukerResponse.ok) {
-        const errorData = await standardSystembrukerResponse.json()
-        throw new Error(errorData.error || "Standard systembruker creation failed")
+      if (!response.ok) {
+        let errorText = `HTTP ${response.status} - ${response.statusText}`
+        try {
+          const errorData = await response.text()
+          errorText = errorData
+        } catch {
+          // Keep the HTTP status if we can't parse the response
+        }
+
+        let helpText = ""
+        if (errorText.includes("One or more Right not found or not delegable")) {
+          helpText = `\n\nHINT: Denne tilgangspakken er muligens ikke tilgjengelig via ${endpoint === "agent" ? "Agent" : "Standard"} systembruker i ${selectedEnvironment} miljø. Prøv ${endpoint === "agent" ? "Standard" : "Agent"} systembruker i stedet.`
+        }
+
+        setError({
+          title: "Systembruker creation failed",
+          message: errorText + helpText,
+        })
+        setShowErrorModal(true)
+        return
       }
 
-      const result = await standardSystembrukerResponse.json()
-      console.log("[v0] Standard systembruker created successfully:", result)
-      setVirksomhetsbrukerResponse(result)
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : "Feil ved opprettelse av standard systembruker"
-      setVirksomhetsbrukerError(errorMessage)
-      console.error("[v0] Standard systembruker creation error:", err)
-    } finally {
-      setVirksomhetsbrukerLoading(false)
-    }
-  }
-
-  const handlePreviewVirksomhetsbruker = (leader: DagligLederData["leaders"][0]) => {
-    if (selectedAccessPackages.length === 0) {
-      setVirksomhetsbrukerError("Tilgangspakke må velges før du kan se eksempel-forespørsel")
-      return
-    }
-
-    const requestBody = {
-      systemId: "312605031_Virksomhetsbruker",
-      partyOrgNo: leader.organisasjonsnummer,
-      externalRef: crypto.randomUUID(),
-      redirectUrl: "",
-      accessPackages: selectedAccessPackages.map((pkg) => ({ urn: pkg.urn })),
-    }
-
-    setPreviewRequestBody(requestBody)
-    setShowPreviewModal(true)
-  }
-
-  const handleCreateVirksomhetsbruker = async (leader: DagligLederData["leaders"][0]) => {
-    if (selectedAccessPackages.length === 0) {
-      setSelectedLeader(leader)
-      setVirksomhetsbrukerModalOpen(true)
-      setVirksomhetsbrukerLoading(false)
-      setVirksomhetsbrukerError("Tilgangspakke må velges før du kan opprette virksomhetsbruker")
-      setVirksomhetsbrukerResponse(null)
-      return
-    }
-
-    setSelectedLeader(leader)
-    setVirksomhetsbrukerModalOpen(true)
-    setVirksomhetsbrukerLoading(true)
-    setVirksomhetsbrukerError(null)
-    setVirksomhetsbrukerResponse(null)
-
-    try {
-      const tokenResponse = await fetch("/api/token", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          orgNo: "312605031",
-          env: selectedEnvironment,
-        }),
+      const result = await response.json()
+      setCreationResult(result)
+      setShowResultModal(true)
+      setCreationHistory((prev) => [result, ...prev.slice(0, 2)])
+    } catch (error) {
+      setError({
+        title: "Unexpected error",
+        message: error instanceof Error ? error.message : String(error),
       })
-
-      if (!tokenResponse.ok) {
-        const tokenError = await tokenResponse.json()
-        throw new Error(`Token generation failed: ${tokenError.error}`)
-      }
-
-      const { token } = await tokenResponse.json()
-      console.log("[v0] Token generated successfully for Virksomhetsbruker, length:", token?.length || 0)
-
-      const virksomhetsbrukerRequest = {
-        systemId: "312605031_Virksomhetsbruker",
-        partyOrgNo: leader.organisasjonsnummer,
-        externalRef: crypto.randomUUID(),
-        redirectUrl: "",
-        accessPackages: selectedAccessPackages.map((pkg) => ({ urn: pkg.urn })),
-      }
-
-      console.log("[v0] Making Virksomhetsbruker request via server-side API")
-      console.log("[v0] Virksomhetsbruker request body:", JSON.stringify(virksomhetsbrukerRequest, null, 2))
-
-      const virksomhetsbrukerResponse = await fetch("/api/systemuser", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          token,
-          requestBody: virksomhetsbrukerRequest,
-          environment: selectedEnvironment,
-        }),
-      })
-
-      if (!virksomhetsbrukerResponse.ok) {
-        const errorData = await virksomhetsbrukerResponse.json()
-        throw new Error(errorData.error || "Virksomhetsbruker creation failed")
-      }
-
-      const result = await virksomhetsbrukerResponse.json()
-      console.log("[v0] Virksomhetsbruker created successfully:", result)
-      setVirksomhetsbrukerResponse(result)
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : "Feil ved opprettelse av virksomhetsbruker"
-      setVirksomhetsbrukerError(errorMessage)
-      console.error("[v0] Virksomhetsbruker creation error:", err)
+      setShowErrorModal(true)
     } finally {
-      setVirksomhetsbrukerLoading(false)
+      setIsCreating(false)
     }
   }
 
-  const removeAccessPackage = (packageToRemove: AccessPackage) => {
-    setSelectedAccessPackages((prev) => prev.filter((pkg) => pkg.urn !== packageToRemove.urn))
-  }
+  const filteredAccessPackages = accessPackages.filter((pkg) =>
+    pkg.displayName.toLowerCase().includes(accessPackageSearch.toLowerCase()),
+  )
 
-  const addAccessPackage = (packageToAdd: AccessPackage) => {
-    if (!selectedAccessPackages.find((pkg) => pkg.urn === packageToAdd.urn)) {
-      setSelectedAccessPackages((prev) => [...prev, packageToAdd])
-    }
-    setAccessPackageSearch("")
-  }
-
-  const addIndividualRight = (rightToAdd: IndividualRight) => {
-    if (!selectedIndividualRights.find((right) => right.name === rightToAdd.name)) {
-      setSelectedIndividualRights((prev) => [...prev, rightToAdd])
-    }
-    setIndividualRightSearch("")
-  }
+  const filteredIndividualRights = individualRights.filter((right) =>
+    right.displayName.toLowerCase().includes(individualRightSearch.toLowerCase()),
+  )
 
   return (
-    <div className="min-h-screen bg-muted">
-      <header className="border-b bg-background shadow-sm">
-        <div className="container mx-auto px-6 py-8">
-          <div className="text-center space-y-4">
-            <h1 className="text-4xl font-semibold text-foreground">Testdatasøk for Team Autorisasjon</h1>
-            <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
-              Hent testdata for forhåndsdefinert ER-Rolle
-            </p>
+    <div className="min-h-screen bg-gray-50 p-4">
+      <div className="max-w-4xl mx-auto space-y-6">
+        <div className="flex justify-between items-center">
+          <div>
+            <h1 className="text-3xl font-bold text-gray-900">Systembruker demoverktøy</h1>
+            <p className="text-gray-600">Opprett systembrukere via API for testing</p>
+          </div>
+          <div className="flex items-center gap-2">
+            <Label htmlFor="environment">Miljø:</Label>
+            <select
+              id="environment"
+              value={selectedEnvironment}
+              onChange={(e) => setSelectedEnvironment(e.target.value)}
+              className="px-3 py-1 border rounded-md"
+            >
+              <option value="TT02">TT02</option>
+              <option value="AT22">AT22</option>
+            </select>
           </div>
         </div>
-      </header>
 
-      <main className="container mx-auto px-6 py-8">
-        <div className="max-w-4xl mx-auto space-y-8">
-          <section aria-labelledby="role-selection-title">
-            <Card className="border shadow-sm rounded-xl">
-              <CardHeader className="pb-6">
-                <CardTitle id="role-selection-title" className="flex items-center gap-3">
-                  <div className="p-2 bg-primary/10 rounded-xl">
-                    <User className="h-5 w-5 text-primary" />
+        <Card className="border-2 border-blue-200">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">Opprett Systembruker</CardTitle>
+            <CardDescription>Velg type systembruker og fyll ut nødvendige opplysninger</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            {/* Systembruker Type Selection */}
+            <div>
+              <Label className="text-base font-medium">Systembruker Type</Label>
+              <div className="flex gap-2 mt-2">
+                <Button
+                  variant={systembrukerType === "agent" ? "default" : "outline"}
+                  onClick={() => setSystembrukerType("agent")}
+                  className="flex-1"
+                >
+                  Agent Systembruker
+                </Button>
+                <Button
+                  variant={systembrukerType === "standard" ? "default" : "outline"}
+                  onClick={() => setSystembrukerType("standard")}
+                  className="flex-1"
+                >
+                  Standard Systembruker
+                </Button>
+              </div>
+              <p className="text-sm text-gray-600">
+                {systembrukerType === "agent"
+                  ? "Kun tilgangspakker (endpoint: /vendor/agent)"
+                  : "Tilgangspakker og/eller enkeltrettigheter (endpoint: /vendor)"}
+              </p>
+            </div>
+
+            {/* Role Selection */}
+            <div>
+              <Label className="text-base font-medium">Rolle</Label>
+              <p className="text-sm text-gray-600 mt-1 mb-3">
+                Forretningsfører, regnskapsfører og revisor gir deg mulighet til å hente relevante klienter for
+                systembruker som opprettes gitt at du velger en matchende tilgangspakke.
+              </p>
+              <div className="relative" ref={roleDropdownRef}>
+                <Button
+                  variant="outline"
+                  onClick={() => setShowRoleDropdown(!showRoleDropdown)}
+                  className="w-full justify-between h-12"
+                >
+                  <div className="flex items-center gap-2">
+                    {(() => {
+                      const config = roleConfig[selectedRole]
+                      const Icon = config.icon
+                      return (
+                        <>
+                          <Icon className="h-4 w-4" />
+                          {config.name}
+                        </>
+                      )
+                    })()}
                   </div>
-                  Velg rolle
-                </CardTitle>
-                <CardDescription className="text-muted-foreground">
-                  Velg hvilken type organisasjon du vil hente testdata for. Du kan også opprette systembruker for
-                  brukeren du henter her for testdataene.
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                  {(Object.keys(roleConfig) as Role[]).map((role) => {
-                    const config = roleConfig[role]
-                    const Icon = config.icon
-                    const isSelected = selectedRole === role
-
-                    return (
-                      <Card
-                        key={role}
-                        className={`cursor-pointer transition-all duration-200 hover:shadow-md rounded-xl ${
-                          isSelected
-                            ? "ring-2 ring-primary bg-primary/5 shadow-md"
-                            : "hover:bg-muted/50 border hover:border-primary/30"
-                        }`}
-                        onClick={() => handleRoleChange(role)}
-                        role="button"
-                        tabIndex={0}
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter" || e.key === " ") {
+                  <ChevronDown className="h-4 w-4" />
+                </Button>
+                {showRoleDropdown && (
+                  <div className="absolute z-50 w-full mt-1 bg-white border rounded-md shadow-lg">
+                    {Object.entries(roleConfig).map(([key, config]) => {
+                      const Icon = config.icon
+                      return (
+                        <button
+                          key={key}
+                          className="w-full px-3 py-3 text-left hover:bg-gray-100 flex items-center gap-2"
+                          onMouseDown={(e) => {
                             e.preventDefault()
-                            handleRoleChange(role)
-                          }
-                        }}
-                        aria-pressed={isSelected}
-                      >
-                        <CardContent className="p-4 text-center space-y-3">
-                          <div className="relative">
-                            <div
-                              className={`w-10 h-10 rounded-lg ${
-                                role === "forretningsfoerer"
-                                  ? "bg-secondary"
-                                  : role === "revisor"
-                                    ? "bg-primary"
-                                    : role === "dagligLeder"
-                                      ? "bg-orange-500"
-                                      : "bg-secondary"
-                              } flex items-center justify-center mx-auto`}
-                            >
-                              <Icon className="h-5 w-5 text-white" />
-                            </div>
-                            {isSelected && (
-                              <div className="absolute -top-1 -right-1 bg-primary rounded-full p-1">
-                                <CheckCircle2 className="h-3 w-3 text-primary-foreground" />
-                              </div>
-                            )}
-                          </div>
-                          <div className="space-y-1">
-                            <h3 className="font-medium text-foreground">{config.name}</h3>
-                            <p className="small text-muted-foreground">{config.description}</p>
-                          </div>
-                        </CardContent>
-                      </Card>
-                    )
-                  })}
-                </div>
-              </CardContent>
-            </Card>
-          </section>
-
-          {selectedRole === "dagligLeder" && dagligLederData && (
-            <div className="space-y-4">
-              <div className="p-4 bg-green-50 border border-green-200 rounded-lg space-y-4">
-                <div className="flex items-center gap-2 mb-3">
-                  <User className="h-5 w-5 text-green-600" />
-                  <h3 className="font-semibold text-green-900">Opprett systembruker for virksomhet</h3>
-                </div>
-
-                <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-sm">
-                  <div className="flex items-center gap-2">
-                    <span className="text-muted-foreground font-medium">Navn:</span>
-                    <span className="font-medium">{dagligLederData.leaders[0].organisasjonsnavn}</span>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => navigator.clipboard.writeText(dagligLederData.leaders[0].organisasjonsnavn)}
-                      className="h-6 w-6 p-0 hover:bg-muted"
-                    >
-                      <Copy className="h-3 w-3" />
-                    </Button>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-muted-foreground font-medium">Organisasjonsnummer:</span>
-                    <span className="font-mono font-medium bg-muted px-2 py-1 rounded border">
-                      {dagligLederData.leaders[0].organisasjonsnummer}
-                    </span>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => navigator.clipboard.writeText(dagligLederData.leaders[0].organisasjonsnummer)}
-                      className="h-6 w-6 p-0 hover:bg-muted"
-                    >
-                      <Copy className="h-3 w-3" />
-                    </Button>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-muted-foreground font-medium">Fødselsnummer:</span>
-                    <span className="font-mono font-medium bg-muted px-2 py-1 rounded border">
-                      {dagligLederData.leaders[0].foedselsnummer}
-                    </span>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => navigator.clipboard.writeText(dagligLederData.leaders[0].foedselsnummer)}
-                      className="h-6 w-6 p-0 hover:bg-muted"
-                    >
-                      <Copy className="h-3 w-3" />
-                    </Button>
-                  </div>
-                </div>
-
-                {/* Radio button selection for systembruker type */}
-                <div className="space-y-3">
-                  <div className="flex items-center gap-2">
-                    <Shield className="h-4 w-4 text-green-600" />
-                    <span className="font-medium text-green-900">Velg systembruker type</span>
-                  </div>
-
-                  <div className="flex gap-4">
-                    <label className="flex items-center gap-2 cursor-pointer">
-                      <input
-                        type="radio"
-                        name="systembrukerType"
-                        value="agent"
-                        checked={systembrukerType === "agent"}
-                        onChange={(e) => setSystembrukerType(e.target.value as "agent" | "standard")}
-                        className="text-green-600"
-                      />
-                      <span className="text-sm font-medium text-green-900">Agent systembruker</span>
-                    </label>
-
-                    <label className="flex items-center gap-2 cursor-pointer">
-                      <input
-                        type="radio"
-                        name="systembrukerType"
-                        value="standard"
-                        checked={systembrukerType === "standard"}
-                        onChange={(e) => setSystembrukerType(e.target.value as "agent" | "standard")}
-                        className="text-green-600"
-                      />
-                      <span className="text-sm font-medium text-green-900">Standard systembruker</span>
-                    </label>
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-2">
-                  <Package className="h-4 w-4 text-green-600" />
-                  <span className="font-medium text-green-900">Valgte tilgangspakker</span>
-                </div>
-
-                <div className="relative">
-                  <Input
-                    type="text"
-                    placeholder="Søk etter tilgangspakker..."
-                    value={accessPackageSearch}
-                    onChange={(e) => setAccessPackageSearch(e.target.value)}
-                    onFocus={() => setShowAccessPackages(true)}
-                    className="w-full"
-                  />
-                  {showAccessPackages && (
-                    <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-md shadow-lg z-50 max-h-64 overflow-y-auto">
-                      {filteredAccessPackages.length > 0 ? (
-                        filteredAccessPackages.map((pkg) => (
-                          <button
-                            key={pkg.urn}
-                            onClick={() => {
-                              addAccessPackage(pkg)
-                              setShowAccessPackages(false)
-                            }}
-                            className="w-full text-left px-3 py-2 hover:bg-gray-50 border-b border-gray-100 last:border-b-0"
-                          >
-                            <div className="font-medium text-sm">{pkg.displayName}</div>
-                          </button>
-                        ))
-                      ) : (
-                        <div className="px-3 py-2 text-sm text-gray-500">Ingen tilgangspakker funnet</div>
-                      )}
-                    </div>
-                  )}
-                </div>
-
-                {selectedAccessPackages.length > 0 && (
-                  <div className="space-y-2">
-                    <span className="text-sm font-medium text-green-900">Valgte tilgangspakker:</span>
-                    <div className="flex flex-wrap gap-2">
-                      {selectedAccessPackages.map((pkg) => (
-                        <div
-                          key={pkg.urn}
-                          className="flex items-center gap-1 bg-green-100 text-green-800 px-2 py-1 rounded-md text-xs"
+                            setSelectedRole(key as Role)
+                            setShowRoleDropdown(false)
+                          }}
                         >
-                          <span>{pkg.displayName}</span>
-                          <button
-                            onClick={() =>
-                              setSelectedAccessPackages(
-                                selectedAccessPackages.filter((selected) => selected.urn !== pkg.urn),
-                              )
-                            }
-                            className="ml-1 hover:bg-green-200 rounded-full p-0.5"
-                          >
-                            <X className="h-3 w-3" />
-                          </button>
-                        </div>
-                      ))}
-                    </div>
+                          <Icon className="h-4 w-4" />
+                          {config.name}
+                        </button>
+                      )
+                    })}
                   </div>
                 )}
+              </div>
+            </div>
 
-                {systembrukerType === "standard" && (
+            {/* Manual Input Fields */}
+            {selectedRole === "manual" && (
+              <div className="grid grid-cols-1 gap-4">
+                <div>
+                  <Label htmlFor="orgNr">Organisasjonsnummer</Label>
+                  <Input
+                    id="orgNr"
+                    value={manualOrgNr}
+                    onChange={(e) => setManualOrgNr(e.target.value)}
+                    placeholder="9 siffer"
+                  />
+                </div>
+              </div>
+            )}
+
+            {/* Auto-filled values display with editable org number */}
+            {selectedRole !== "manual" && (
+              <div className="space-y-4">
+                <div>
+                  <Label htmlFor="editableOrgNr">Organisasjonsnummer</Label>
+                  <Input
+                    id="editableOrgNr"
+                    value={editableOrgNr || testData[selectedRole]?.[0]?.organisasjonsnummer || ""}
+                    onChange={(e) => setEditableOrgNr(e.target.value)}
+                    placeholder="9 siffer"
+                  />
+                </div>
+                {!editableOrgNr && (
                   <>
-                    <div className="flex items-center gap-2">
-                      <Shield className="h-4 w-4 text-green-600" />
-                      <span className="font-medium text-green-900">Valgte enkeltrettigheter</span>
-                    </div>
-
-                    <div className="relative">
-                      <Input
-                        type="text"
-                        placeholder="Søk etter enkeltrettigheter..."
-                        value={individualRightSearch}
-                        onChange={(e) => setIndividualRightSearch(e.target.value)}
-                        onFocus={() => setIndividualRightDropdownOpen(true)}
-                        className="w-full"
-                      />
-                      {individualRightDropdownOpen && (
-                        <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-md shadow-lg z-50 max-h-64 overflow-y-auto">
-                          {filteredIndividualRights.length > 0 ? (
-                            filteredIndividualRights.map((right) => (
-                              <button
-                                key={right.name}
-                                onClick={() => {
-                                  addIndividualRight(right)
-                                  setIndividualRightDropdownOpen(false)
-                                }}
-                                className="w-full text-left px-3 py-2 hover:bg-gray-50 border-b border-gray-100 last:border-b-0"
-                              >
-                                <div className="font-medium text-sm">{right.displayName}</div>
-                              </button>
-                            ))
-                          ) : (
-                            <div className="px-3 py-2 text-sm text-gray-500">Ingen enkeltrettigheter funnet</div>
-                          )}
-                        </div>
-                      )}
-                    </div>
-
-                    {selectedIndividualRights.length > 0 && (
-                      <div className="space-y-2">
-                        <span className="text-sm font-medium text-green-900">Valgte enkeltrettigheter:</span>
-                        <div className="flex flex-wrap gap-2">
-                          {selectedIndividualRights.map((right) => (
-                            <div
-                              key={right.name}
-                              className="flex items-center gap-1 bg-green-100 text-green-800 px-2 py-1 rounded-md text-xs"
-                            >
-                              <span>{right.displayName}</span>
-                              <button
-                                onClick={() =>
-                                  setSelectedIndividualRights(
-                                    selectedIndividualRights.filter((selected) => selected.name !== right.name),
-                                  )
-                                }
-                                className="ml-1 hover:bg-green-200 rounded-full p-0.5"
-                              >
-                                <X className="h-3 w-3" />
-                              </button>
-                            </div>
-                          ))}
-                        </div>
+                    {getCurrentOrgName() && (
+                      <div>
+                        <Label>Organisasjonsnavn</Label>
+                        <div className="p-2 bg-gray-100 rounded border text-sm">{getCurrentOrgName()}</div>
+                      </div>
+                    )}
+                    {getCurrentFnr() && (
+                      <div>
+                        <Label>Fødselsnummer (daglig leder)</Label>
+                        <div className="p-2 bg-gray-100 rounded border text-sm font-mono">{getCurrentFnr()}</div>
                       </div>
                     )}
                   </>
                 )}
-
-                <div className="flex gap-3 pt-2">
-                  <Button
-                    onClick={() => handlePreviewVirksomhetsbruker(dagligLederData.leaders[0])}
-                    variant="outline"
-                    size="sm"
-                  >
-                    Vis eksempel-forespørsel
-                  </Button>
-                  {systembrukerType === "agent" ? (
-                    <Button
-                      onClick={() => handleCreateVirksomhetsbruker(dagligLederData.leaders[0])}
-                      className="bg-green-600 hover:bg-green-700 text-white text-sm"
-                      size="sm"
-                    >
-                      Opprett agent-systembruker
-                    </Button>
-                  ) : (
-                    <Button
-                      onClick={() => handleCreateStandardSystembruker(dagligLederData.leaders[0])}
-                      className="bg-green-600 hover:bg-green-700 text-white text-sm"
-                      size="sm"
-                    >
-                      Opprett Standard systembruker
-                    </Button>
-                  )}
-                </div>
               </div>
+            )}
 
-              <div className="space-y-3">
-                <h3 className="font-semibold text-foreground flex items-center gap-2">
-                  <Users className="h-5 w-5" />
-                  Andre daglige ledere
-                </h3>
-                <div className="space-y-2">
-                  {dagligLederData.leaders.slice(1).map((leader, index) => (
-                    <Card key={index + 1} className="bg-background border rounded-xl hover:shadow-sm transition-shadow">
-                      <CardContent className="p-4">
-                        <div className="space-y-2">
-                          <div className="flex flex-col sm:flex-row sm:justify-between gap-1">
-                            <span className="text-muted-foreground font-medium">Navn:</span>
-                            <span className="font-medium text-foreground">{leader.organisasjonsnavn}</span>
-                          </div>
-                          <div className="flex flex-col sm:flex-row sm:justify-between gap-1">
-                            <span className="text-muted-foreground font-medium">Organisasjonsnummer:</span>
-                            <span className="font-mono font-medium bg-muted px-3 py-1 rounded-lg border">
-                              {leader.organisasjonsnummer}
-                            </span>
-                          </div>
-                          <div className="flex flex-col sm:flex-row sm:justify-between gap-1">
-                            <span className="text-muted-foreground font-medium">Fødselsnummer:</span>
-                            <span className="font-mono font-medium bg-muted px-3 py-1 rounded-lg border">
-                              {leader.foedselsnummer}
-                            </span>
-                          </div>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  ))}
-                </div>
-
-                <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-                  <div className="flex items-center gap-2 mb-3">
-                    <Download className="h-5 w-5 text-blue-600" />
-                    <span className="font-medium text-blue-900">Eksporter data</span>
+            {/* Access Packages */}
+            <div>
+              <Label className="text-base font-medium">Tilgangspakker</Label>
+              <div className="relative mt-2" ref={accessPackageDropdownRef}>
+                <Input
+                  placeholder="Søk etter tilgangspakker..."
+                  value={accessPackageSearch}
+                  onChange={(e) => setAccessPackageSearch(e.target.value)}
+                  onFocus={() => setShowAccessPackageDropdown(true)}
+                />
+                {showAccessPackageDropdown && (
+                  <div className="absolute z-50 w-full mt-1 bg-white border rounded-md shadow-lg max-h-48 overflow-y-auto">
+                    {filteredAccessPackages.map((pkg) => (
+                      <button
+                        key={pkg.urn}
+                        className="w-full px-3 py-2 text-left hover:bg-gray-100 text-sm"
+                        onMouseDown={(e) => {
+                          e.preventDefault()
+                          if (!selectedAccessPackages.find((p) => p.urn === pkg.urn)) {
+                            setSelectedAccessPackages((prev) => [...prev, pkg])
+                          }
+                          setAccessPackageSearch("")
+                          setShowAccessPackageDropdown(false)
+                        }}
+                      >
+                        {pkg.displayName}
+                      </button>
+                    ))}
                   </div>
-
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm text-blue-700">Kopier alle organisasjonsnumre som JavaScript array</span>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => {
-                          const orgNumbers = dagligLederData.leaders.map((leader) => `'${leader.organisasjonsnummer}'`)
-                          const arrayString = `[${orgNumbers.join(", ")}];`
-                          navigator.clipboard.writeText(arrayString)
-                          console.log("[v0] Copied organization numbers to clipboard:", arrayString)
-                        }}
-                        className="flex items-center gap-2"
-                      >
-                        <Copy className="h-4 w-4" />
-                        Kopier alle orgnummer ({dagligLederData.leaders.length})
-                      </Button>
-                    </div>
-
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm text-blue-700">Kopier alle fødselsnumre som JavaScript array</span>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => {
-                          const socialNumbers = dagligLederData.leaders.map((leader) => `'${leader.foedselsnummer}'`)
-                          const arrayString = `[${socialNumbers.join(", ")}];`
-                          navigator.clipboard.writeText(arrayString)
-                          console.log("[v0] Copied social security numbers to clipboard:", arrayString)
-                        }}
-                        className="flex items-center gap-2"
-                      >
-                        <Copy className="h-4 w-4" />
-                        Kopier alle fødselsnummer ({dagligLederData.leaders.length})
-                      </Button>
-                    </div>
-
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm text-blue-700">
-                        Kopier kombinert liste med orgnummer og fødselsnummer
-                      </span>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => {
-                          const combinedList = dagligLederData.leaders.map(
-                            (leader) => `{ org: '${leader.organisasjonsnummer}', ssn: '${leader.foedselsnummer}' }`,
-                          )
-                          const arrayString = `[${combinedList.join(", ")}];`
-                          navigator.clipboard.writeText(arrayString)
-                          console.log("[v0] Copied combined list to clipboard:", arrayString)
-                        }}
-                        className="flex items-center gap-2"
-                      >
-                        <Copy className="h-4 w-4" />
-                        Kopier liste med både orgnummer og fødselsnummer ({dagligLederData.leaders.length})
-                      </Button>
-                    </div>
-                  </div>
-                </div>
+                )}
+              </div>
+              <div className="flex flex-wrap gap-2 mt-2">
+                {selectedAccessPackages.map((pkg) => (
+                  <Badge key={pkg.urn} variant="secondary" className="flex items-center gap-1">
+                    {pkg.displayName}
+                    <button
+                      className="chip-remove-button ml-1 hover:bg-red-100 rounded-full p-0.5"
+                      onClick={() => {
+                        setSelectedAccessPackages((prev) => prev.filter((p) => p.urn !== pkg.urn))
+                      }}
+                    >
+                      <X className="h-3 w-3 hover:text-red-600" />
+                    </button>
+                  </Badge>
+                ))}
               </div>
             </div>
-          )}
 
-          {selectedRole && selectedRole !== "dagligLeder" && (
-            <section aria-labelledby="fetch-data-section">
-              <Card className="border shadow-sm rounded-xl">
-                <CardContent className="p-6">
-                  <Button
-                    onClick={handleFetchTestData}
-                    disabled={loading}
-                    size="lg"
-                    className="w-full min-h-[44px] text-lg font-semibold bg-primary hover:bg-primary/90 rounded-xl shadow-sm hover:shadow-md transition-all duration-200"
-                  >
-                    <Search className="mr-2 h-5 w-5" />
-                    {loading ? "Henter testdata" : "Hent testdata"}
-                  </Button>
-
-                  {error && (
-                    <div className="mt-4 p-4 bg-destructive/10 border border-destructive/20 rounded-xl">
-                      <p className="text-destructive font-medium">{error}</p>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            </section>
-          )}
-
-          {selectedRole === "dagligLeder" && (
-            <section aria-labelledby="fetch-data-section">
-              <Card className="border shadow-sm rounded-xl">
-                <CardContent className="p-6">
-                  <Button
-                    onClick={handleFetchTestData}
-                    disabled={loading}
-                    size="lg"
-                    className="w-full min-h-[44px] text-lg font-semibold bg-primary hover:bg-primary/90 rounded-xl shadow-sm hover:shadow-md transition-all duration-200"
-                  >
-                    <Search className="mr-2 h-5 w-5" />
-                    {loading ? "Henter testdata" : "Hent testdata"}
-                  </Button>
-
-                  {error && (
-                    <div className="mt-4 p-4 bg-destructive/10 border border-destructive/20 rounded-xl">
-                      <p className="text-destructive font-medium">{error}</p>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            </section>
-          )}
-
-          {loading && (
-            <section aria-labelledby="loading-title">
-              <Card className="border shadow-sm rounded-xl">
-                <CardHeader className="pb-6">
-                  <div className="flex items-center justify-between">
-                    <CardTitle id="loading-title" className="flex items-center gap-3">
-                      <div className="p-2 bg-primary/10 rounded-xl">
-                        <Building2 className="h-5 w-5 text-primary" />
-                      </div>
-                      Henter testdata...
-                    </CardTitle>
-                    <div className="h-8 w-24 bg-gray-200 animate-pulse rounded-lg"></div>
-                  </div>
-                </CardHeader>
-                <CardContent className="space-y-6">
-                  {selectedRole === "dagligLeder" ? (
-                    <div className="space-y-4">
-                      <h3 className="flex items-center gap-3">
-                        <div className="p-1.5 bg-secondary/10 rounded-lg">
-                          <UserCheck className="h-4 w-4 text-secondary" />
-                        </div>
-                        Daglige ledere
-                      </h3>
-                      <div className="animate-pulse space-y-3">
-                        {Array.from({ length: 3 }).map((_, i) => (
-                          <div key={i} className="h-20 bg-gray-200 rounded-xl"></div>
-                        ))}
-                      </div>
-                    </div>
-                  ) : (
-                    <>
-                      <div className="space-y-4">
-                        <h3 className="flex items-center gap-3">
-                          <div className="p-1.5 bg-secondary/10 rounded-lg">
-                            <User className="h-4 w-4 text-secondary" />
-                          </div>
-                          Daglig leder
-                        </h3>
-                        <Card className="bg-background border rounded-xl">
-                          <CardContent className="p-4">
-                            <div className="animate-pulse space-y-3">
-                              <div className="flex flex-col sm:flex-row sm:justify-between gap-2">
-                                <span className="text-muted-foreground font-medium">Fødselsnummer:</span>
-                                <div className="h-4 bg-gray-200 rounded w-32"></div>
-                              </div>
-                              <div className="flex flex-col sm:flex-row sm:justify-between gap-2">
-                                <span className="text-muted-foreground font-medium">Organisasjonsnummer:</span>
-                                <div className="h-4 bg-gray-200 rounded w-28"></div>
-                              </div>
-                              <div className="flex flex-col sm:flex-row sm:justify-between gap-2">
-                                <span className="text-muted-foreground font-medium">Organisasjonsnavn:</span>
-                                <div className="h-6 bg-gray-200 rounded-full w-48"></div>
-                              </div>
-                            </div>
-                          </CardContent>
-                        </Card>
-                      </div>
-
-                      <Separator className="my-6" />
-
-                      <div className="space-y-4">
-                        <h3 className="flex items-center gap-3">
-                          <div className="p-1.5 bg-secondary/10 rounded-lg">
-                            <Building2 className="h-4 w-4 text-secondary" />
-                          </div>
-                          Klienter
-                          <div className="h-6 w-8 bg-gray-200 animate-pulse rounded-lg ml-2"></div>
-                        </h3>
-                        <div className="animate-pulse space-y-3">
-                          {Array.from({ length: 5 }).map((_, i) => (
-                            <div key={i} className="h-16 bg-gray-200 rounded-xl"></div>
-                          ))}
-                        </div>
-                      </div>
-                    </>
-                  )}
-                </CardContent>
-              </Card>
-            </section>
-          )}
-
-          {selectedRole && selectedRole !== "dagligLeder" && testData && (
-            <section aria-labelledby="test-data-results">
-              <div className="space-y-6">
-                <div className="flex items-center gap-3">
-                  <div className="p-1.5 bg-secondary/10 rounded-lg">
-                    <User className="h-4 w-4 text-secondary" />
-                  </div>
-                  <h3 className="text-lg font-semibold">Daglig leder</h3>
-                </div>
-
-                <div className="space-y-0">
-                  <div className="py-3 px-1">
-                    <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4">
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 text-sm">
-                          <span className="font-medium truncate">{testData.dagligLeder.organisasjonsnavn}</span>
-                          <button
-                            onClick={() => navigator.clipboard.writeText(testData.dagligLeder.organisasjonsnavn)}
-                            className="opacity-60 hover:opacity-100 p-1"
-                            title="Kopier organisasjonsnavn"
-                          >
-                            <Copy className="h-3 w-3" />
-                          </button>
-                        </div>
-                        <div className="flex items-center gap-2 text-xs text-muted-foreground mt-1">
-                          <span className="font-mono">{testData.dagligLeder.organisasjonsnummer}</span>
-                          <button
-                            onClick={() => navigator.clipboard.writeText(testData.dagligLeder.organisasjonsnummer)}
-                            className="opacity-60 hover:opacity-100 p-1"
-                            title="Kopier organisasjonsnummer"
-                          >
-                            <Copy className="h-3 w-3" />
-                          </button>
-                          <span className="font-mono">{testData.dagligLeder.foedselsnummer}</span>
-                          <button
-                            onClick={() => navigator.clipboard.writeText(testData.dagligLeder.foedselsnummer)}
-                            className="opacity-60 hover:opacity-100 p-1"
-                            title="Kopier fødselsnummer"
-                          >
-                            <Copy className="h-3 w-3" />
-                          </button>
-                        </div>
-                      </div>
-
-                      <div className="flex gap-2">
-                        <Button
-                          onClick={handlePreviewSystemUser}
-                          variant="outline"
-                          size="sm"
-                          className="text-xs bg-transparent"
+            {/* Individual Rights (only for Standard) */}
+            {systembrukerType === "standard" && (
+              <div>
+                <Label className="text-base font-medium">Enkeltrettigheter</Label>
+                <div className="relative mt-2" ref={individualRightDropdownRef}>
+                  <Input
+                    placeholder="Søk etter enkeltrettigheter..."
+                    value={individualRightSearch}
+                    onChange={(e) => setIndividualRightSearch(e.target.value)}
+                    onFocus={() => setShowIndividualRightDropdown(true)}
+                  />
+                  {showIndividualRightDropdown && (
+                    <div className="absolute z-50 w-full mt-1 bg-white border rounded-md shadow-lg max-h-48 overflow-y-auto">
+                      {filteredIndividualRights.map((right) => (
+                        <button
+                          key={right.name}
+                          className="w-full px-3 py-2 text-left hover:bg-gray-100 text-sm"
+                          onMouseDown={(e) => {
+                            e.preventDefault()
+                            if (!selectedIndividualRights.find((r) => r.name === right.name)) {
+                              setSelectedIndividualRights((prev) => [...prev, right])
+                            }
+                            setIndividualRightSearch("")
+                            setShowIndividualRightDropdown(false)
+                          }}
                         >
-                          Vis eksempel-forespørsel
-                        </Button>
-                        <Button onClick={handleCreateSystemUser} size="sm" className="text-xs">
-                          Opprett systembruker
-                        </Button>
-                      </div>
+                          {right.displayName}
+                        </button>
+                      ))}
                     </div>
-                  </div>
-                  <div className="border-b border-border/30"></div>
+                  )}
                 </div>
-
-                <div className="flex items-center gap-3 mt-6">
-                  <div className="p-1.5 bg-primary/10 rounded-lg">
-                    <Users className="h-4 w-4 text-primary" />
-                  </div>
-                  <h3 className="text-lg font-semibold">Klienter</h3>
-                </div>
-
-                <div className="space-y-0">
-                  {testData.clients.map((client, index) => (
-                    <div key={index}>
-                      <div className="py-3 px-1">
-                        <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4">
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2 text-sm">
-                              <span className="font-medium truncate">{client.navn}</span>
-                              <button
-                                onClick={() => navigator.clipboard.writeText(client.navn)}
-                                className="opacity-60 hover:opacity-100 p-1"
-                                title="Kopier navn"
-                              >
-                                <Copy className="h-3 w-3" />
-                              </button>
-                            </div>
-                            <div className="flex items-center gap-2 text-xs text-muted-foreground mt-1">
-                              <span className="font-mono">{client.organisasjonsnummer}</span>
-                              <button
-                                onClick={() => navigator.clipboard.writeText(client.organisasjonsnummer)}
-                                className="opacity-60 hover:opacity-100 p-1"
-                                title="Kopier organisasjonsnummer"
-                              >
-                                <Copy className="h-3 w-3" />
-                              </button>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                      {index < testData.clients.length - 1 && <div className="border-b border-border/30"></div>}
-                    </div>
+                <div className="flex flex-wrap gap-2 mt-2">
+                  {selectedIndividualRights.map((right) => (
+                    <Badge key={right.name} variant="secondary" className="flex items-center gap-1">
+                      {right.displayName}
+                      <button
+                        className="chip-remove-button ml-1 hover:bg-red-100 rounded-full p-0.5"
+                        onClick={() => {
+                          setSelectedIndividualRights((prev) => prev.filter((r) => r.name !== right.name))
+                        }}
+                      >
+                        <X className="h-3 w-3 hover:text-red-600" />
+                      </button>
+                    </Badge>
                   ))}
                 </div>
               </div>
-            </section>
-          )}
-        </div>
-      </main>
+            )}
 
-      <Dialog open={systemUserModalOpen} onOpenChange={setSystemUserModalOpen}>
-        <DialogContent className="max-w-[95vw] sm:max-w-lg md:max-w-xl lg:max-w-2xl max-h-[90vh] overflow-y-auto mx-4">
-          <DialogHeader>
-            <DialogTitle>Opprett Systembruker</DialogTitle>
-            <DialogDescription>
-              Oppretter systembruker for{" "}
-              {testData?.dagligLeder.organisasjonsnavn || testData?.dagligLeder.organisasjonsnummer}
-            </DialogDescription>
-          </DialogHeader>
+            {/* Create Button */}
+            <Button onClick={handleCreateSystembruker} disabled={isCreating} className="w-full h-12 text-lg">
+              {isCreating ? "Oppretter..." : "Opprett Systembruker"}
+            </Button>
+          </CardContent>
+        </Card>
 
-          {systemUserLoading && (
-            <div className="animate-pulse space-y-4 py-4">
-              <div className="h-5 bg-gray-200 rounded w-1/3"></div>
-              <div className="h-4 bg-gray-200 rounded w-2/3"></div>
-              <div className="h-4 bg-gray-200 rounded w-1/2"></div>
-              <div className="h-10 bg-gray-200 rounded w-40"></div>
-            </div>
-          )}
-
-          {systemUserError && (
-            <div className="space-y-4 py-4">
-              <div className="flex items-center gap-2 text-destructive">
-                <AlertCircle className="h-5 w-5" />
-                <span className="font-medium">Feil ved opprettelse</span>
-              </div>
-              <p className="text-sm text-muted-foreground">{systemUserError}</p>
-              <Button onClick={handleCreateSystemUser} variant="outline">
-                Prøv igjen
-              </Button>
-            </div>
-          )}
-
-          {systemUserResponse && testData && (
-            <div className="space-y-4 py-4">
-              <div className="p-3 bg-green-50 border border-green-200 rounded-lg">
-                <p className="text-green-800 font-medium text-sm">
-                  Logg inn med fødselsnummer{" "}
-                  <span className="bg-green-100 px-2 py-1 rounded font-mono font-bold border border-green-300">
-                    {testData.dagligLeder.foedselsnummer}
-                  </span>
-                </p>
-              </div>
-
-              <Button asChild className="w-full text-base sm:text-lg">
-                <a href={systemUserResponse.confirmUrl} target="_blank" rel="noopener noreferrer">
-                  Logg inn i Altinn for å godkjenne Systembruker
-                  <ExternalLink className="ml-2 h-4 w-4" />
-                </a>
-              </Button>
-
-              <div className="pt-4 border-t space-y-3">
-                <div className="p-4 bg-gray-50 border border-gray-200 rounded-lg">
-                  <p className="text-gray-800 text-sm">
-                    Etter systembruker er godkjent kan du sjekke Systembrukeren. Husk å velge aktør (organisasjon{" "}
-                    <span className="bg-gray-100 px-2 py-1 rounded font-mono font-bold border border-gray-300">
-                      {testData.dagligLeder.organisasjonsnummer} - {testData.dagligLeder.organisasjonsnavn}
-                    </span>
-                    ) etter å ha logget inn med daglig leder (
-                    <span className="bg-gray-100 px-2 py-1 rounded font-mono font-bold border border-gray-300">
-                      {testData.dagligLeder.foedselsnummer}
-                    </span>
-                    ).
-                  </p>
-                </div>
-
-                <Button asChild variant="outline" className="w-full bg-transparent text-lg">
-                  <a
-                    href={
-                      selectedEnvironment === "at22"
-                        ? "https://am.ui.at22.altinn.cloud/accessmanagement/ui/systemuser/overview"
-                        : "https://am.ui.tt02.altinn.no/accessmanagement/ui/systemuser/overview"
-                    }
-                    target="_blank"
-                    rel="noopener noreferrer"
-                  >
-                    Gå til Systemtilgang-siden
-                    <ExternalLink className="ml-2 h-4 w-4" />
-                  </a>
-                </Button>
-              </div>
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={virksomhetsbrukerModalOpen} onOpenChange={setVirksomhetsbrukerModalOpen}>
-        <DialogContent className="max-w-[95vw] sm:max-w-lg md:max-w-xl lg:max-w-2xl max-h-[90vh] overflow-y-auto mx-4">
-          <DialogHeader>
-            <DialogTitle>Opprett Systembruker for Virksomheten</DialogTitle>
-            <DialogDescription>
-              Oppretter systembruker for virksomheten{" "}
-              {selectedLeader?.organisasjonsnavn || selectedLeader?.organisasjonsnummer}
-            </DialogDescription>
-          </DialogHeader>
-
-          {virksomhetsbrukerLoading && (
-            <div className="animate-pulse space-y-4 py-4">
-              <div className="h-5 bg-gray-200 rounded w-1/3"></div>
-              <div className="h-4 bg-gray-200 rounded w-2/3"></div>
-              <div className="h-4 bg-gray-200 rounded w-1/2"></div>
-              <div className="h-10 bg-gray-200 rounded w-40"></div>
-            </div>
-          )}
-
-          {virksomhetsbrukerError && (
-            <div className="space-y-4 py-4">
-              <div className="flex items-center gap-2 text-destructive">
-                <AlertCircle className="h-5 w-5" />
-                <span className="font-medium">Feil ved opprettelse</span>
-              </div>
-              <p className="text-sm text-muted-foreground">{virksomhetsbrukerError}</p>
-              <Button onClick={() => selectedLeader && handleCreateVirksomhetsbruker(selectedLeader)} variant="outline">
-                Prøv igjen
-              </Button>
-            </div>
-          )}
-
-          {virksomhetsbrukerResponse && selectedLeader && (
-            <div className="space-y-4 py-4">
-              <div className="p-3 bg-green-50 border border-green-200 rounded-lg">
-                <p className="text-green-800 font-medium text-sm">
-                  Logg inn med fødselsnummer{" "}
-                  <span className="bg-green-100 px-2 py-1 rounded font-mono font-bold border border-green-300">
-                    {selectedLeader.foedselsnummer}
-                  </span>
-                </p>
-              </div>
-
-              <Button asChild className="w-full text-base sm:text-lg">
-                <a href={virksomhetsbrukerResponse.confirmUrl} target="_blank" rel="noopener noreferrer">
-                  Logg inn i Altinn for å godkjenne Systembruker
-                  <ExternalLink className="ml-2 h-4 w-4" />
-                </a>
-              </Button>
-
-              <div className="pt-4 border-t space-y-3">
-                <div className="p-4 bg-gray-50 border border-gray-200 rounded-lg">
-                  <p className="text-gray-800 text-sm">
-                    Etter systembruker er godkjent kan du sjekke Systembrukeren. Husk å velge aktør (organisasjon{" "}
-                    <span className="bg-gray-100 px-2 py-1 rounded font-mono font-bold border border-gray-300">
-                      {selectedLeader.organisasjonsnummer} - {selectedLeader.organisasjonsnavn}
-                    </span>
-                    ) etter å ha logget inn med daglig leder (
-                    <span className="bg-gray-100 px-2 py-1 rounded font-mono font-bold border border-gray-300">
-                      {selectedLeader.foedselsnummer}
-                    </span>
-                    ).
-                  </p>
-                </div>
-
-                <Button asChild variant="outline" className="w-full bg-transparent text-lg">
-                  <a
-                    href={
-                      selectedEnvironment === "at22"
-                        ? "https://am.ui.at22.altinn.cloud/accessmanagement/ui/systemuser/overview"
-                        : "https://am.ui.tt02.altinn.no/accessmanagement/ui/systemuser/overview"
-                    }
-                    target="_blank"
-                    rel="noopener noreferrer"
-                  >
-                    Gå til Systemtilgang-siden
-                    <ExternalLink className="ml-2 h-4 w-4" />
-                  </a>
-                </Button>
-              </div>
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={showPreviewModal} onOpenChange={setShowPreviewModal}>
-        <DialogContent className="max-w-[95vw] sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>Eksempel på forespørsel</DialogTitle>
-            <DialogDescription>Dette er et eksempel på hvordan forespørselen vil se ut.</DialogDescription>
-          </DialogHeader>
-          <pre className="rounded-md bg-muted p-4 font-mono text-sm">
-            {previewRequestBody ? JSON.stringify(previewRequestBody, null, 2) : "Ingen data tilgjengelig."}
-          </pre>
-        </DialogContent>
-      </Dialog>
-
-      <div className="fixed bottom-0 left-0 w-full bg-background/80 backdrop-blur-sm border-t z-50">
-        <div className="container mx-auto px-6 py-3 flex items-center justify-between">
-          <div></div>
-
-          <div className="flex items-center gap-4">
-            <div className="flex items-center gap-2">
-              <label htmlFor="environment" className="text-sm font-medium text-muted-foreground">
-                Environment:
-              </label>
-              <select
-                id="environment"
-                className="bg-background border border-input rounded-md px-2 py-1 text-sm"
-                value={selectedEnvironment}
-                onChange={(e) => setSelectedEnvironment(e.target.value as Environment)}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center justify-between">
+              JSON Payload Preview
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => navigator.clipboard.writeText(JSON.stringify(generateJsonPayload(), null, 2))}
               >
-                <option value="at22">AT22</option>
-                <option value="tt02">TT02</option>
-              </select>
-            </div>
-          </div>
+                <Copy className="h-4 w-4 mr-1" />
+                Kopier
+              </Button>
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <pre className="bg-gray-50 text-gray-800 p-4 rounded-md text-sm overflow-x-auto font-mono border">
+              {JSON.stringify(generateJsonPayload(), null, 2)}
+            </pre>
+          </CardContent>
+        </Card>
+
+        <div className="space-y-4">
+          <h2 className="text-xl font-semibold">Testdata Utforskning</h2>
+
+          {["forretningsfoerer", "revisor", "regnskapsfoerere"].map((role) => (
+            <Card key={role}>
+              <CardHeader
+                className="cursor-pointer"
+                onClick={() =>
+                  setExpandedPanels((prev) => ({
+                    ...prev,
+                    [role]: !prev[role],
+                  }))
+                }
+              >
+                <CardTitle className="flex items-center justify-between">
+                  <span className="flex items-center gap-2">
+                    {expandedPanels[role] ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                    {roleConfig[role as keyof typeof roleConfig].name} testdata
+                  </span>
+                  <Badge variant="outline">{testData[role]?.length || 0} entries</Badge>
+                </CardTitle>
+              </CardHeader>
+              {expandedPanels[role] && (
+                <CardContent>
+                  <div className="space-y-2">
+                    {testData[role]?.map((entry, index) => (
+                      <div key={index} className="flex items-center justify-between p-3 bg-gray-50 rounded-md">
+                        <div className="text-sm">
+                          <div className="font-medium">{entry.organisasjonsnavn}</div>
+                          <div className="text-gray-600">
+                            Org: {entry.organisasjonsnummer} | FNR: {entry.foedselsnummer}
+                          </div>
+                        </div>
+                        <Button
+                          size="sm"
+                          onClick={() => {
+                            setSelectedRole(role as Role)
+                            setManualOrgNr(entry.organisasjonsnummer)
+                            setManualFnr(entry.foedselsnummer)
+                          }}
+                        >
+                          Bruk denne
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              )}
+            </Card>
+          ))}
         </div>
+
+        {creationHistory.length > 0 && (
+          <Card>
+            <CardHeader>
+              <CardTitle>Siste opprettede systembrukere</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-2">
+                {creationHistory.map((item, index) => (
+                  <div key={index} className="p-3 bg-gray-50 rounded-md text-sm">
+                    <div className="font-medium">
+                      {testData[selectedRole]?.[0]?.organisasjonsnavn || `Org: ${item.partyOrgNo}`}
+                    </div>
+                    <div className="text-gray-600">
+                      Org: {item.partyOrgNo} | Status: {item.status}
+                      {testData[selectedRole]?.[0]?.foedselsnummer && (
+                        <> | Daglig leder: {testData[selectedRole][0].foedselsnummer}</>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Error Modal */}
+        {showErrorModal && error && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+            <Card className="max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+              <CardHeader>
+                <CardTitle className="text-red-600 flex items-center gap-2">
+                  <X className="h-5 w-5" />
+                  {error.title}
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="p-4 bg-gray-900 text-green-400 rounded-lg">
+                  <pre className="text-xs font-mono whitespace-pre-wrap overflow-x-auto">{error.message}</pre>
+                </div>
+
+                <div className="flex gap-2 pt-4">
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      setShowErrorModal(false)
+                      setError(null)
+                    }}
+                    className="flex-1"
+                  >
+                    Lukk
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onClick={() => navigator.clipboard.writeText(error.message)}
+                    className="flex-1"
+                  >
+                    <Copy className="h-4 w-4 mr-1" />
+                    Kopier feilmelding
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        )}
+
+        {showResultModal && creationResult && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+            <Card className="max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+              <CardHeader>
+                <CardTitle className="text-green-600">Systembruker opprettet!</CardTitle>
+                <CardDescription>Systembrukeren er opprettet og venter på godkjenning</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="p-4 bg-blue-50 rounded-lg">
+                  <h3 className="font-semibold text-blue-900 mb-2">Slik logger du inn for å godkjenne:</h3>
+                  <ol className="list-decimal list-inside space-y-1 text-sm text-blue-800">
+                    <li>Klikk på lenken nedenfor</li>
+                    <li>
+                      Logg inn med fødselsnummer:{" "}
+                      <strong className="font-mono">{getCurrentFnr() || "Se testdata"}</strong>
+                    </li>
+                  </ol>
+                </div>
+
+                <div>
+                  <Label>Godkjenningslenke:</Label>
+                  <div className="flex gap-2 mt-1">
+                    <Input value={creationResult.confirmUrl} readOnly className="font-mono text-xs" />
+                    <Button size="sm" onClick={() => navigator.clipboard.writeText(creationResult.confirmUrl)}>
+                      <Copy className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+
+                <div className="flex gap-2 pt-4">
+                  <Button onClick={() => window.open(creationResult.confirmUrl, "_blank")} className="flex-1">
+                    Åpne godkjenningslenke
+                  </Button>
+                  <Button variant="outline" onClick={() => setShowResultModal(false)} className="flex-1">
+                    Lukk
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        )}
       </div>
     </div>
   )

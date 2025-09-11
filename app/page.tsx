@@ -594,7 +594,7 @@ export default function SystembrukerTool() {
           <CardContent className="space-y-6">
             {/* Systembruker Type Selection */}
             <div>
-              <Label className="text-base font-medium">Systembruker Type</Label>
+              <Label className="text-base font-medium">Type</Label>
               <div className="flex gap-2 mt-2">
                 <Button
                   variant={systembrukerType === "agent" ? "default" : "outline"}
@@ -613,8 +613,8 @@ export default function SystembrukerTool() {
               </div>
               <p className="text-sm text-gray-600">
                 {systembrukerType === "agent"
-                  ? "Kun tilgangspakker (endpoint: /vendor/agent)"
-                  : "Tilgangspakker og/eller enkeltrettigheter (endpoint: /vendor)"}
+                  ? "Lar deg opprette Systembruker med tilgangspakker for klientforhold"
+                  : "Standard systembruker med enkeltrettigheter og tilgangspakker"}
               </p>
             </div>
 
@@ -622,8 +622,18 @@ export default function SystembrukerTool() {
             <div>
               <Label className="text-base font-medium">Rolle</Label>
               <p className="text-sm text-gray-600 mt-1 mb-3">
-                Forretningsfører, regnskapsfører og revisor gir deg mulighet til å hente relevante klienter for
-                systembruker som opprettes gitt at du velger en matchende tilgangspakke.
+                Henter testorganisasjon fra{" "}
+                <a
+                  href="https://www.digdir.no/felleslosninger/tenor-testdatasok/1284"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-blue-600 hover:text-blue-800 underline"
+                >
+                  Tenor Testdatasøk
+                </a>
+                {systembrukerType === "agent" &&
+                  ". Forretningsfører, regnskapsfører og revisor gir deg mulighet til å hente relevante klienter for systembruker som opprettes gitt at du velger en matchende tilgangspakke"}
+                .
               </p>
               <div className="relative" ref={roleDropdownRef}>
                 <Button

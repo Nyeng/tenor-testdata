@@ -279,6 +279,10 @@ export default function SystembrukerTool() {
   const [creationHistory, setCreationHistory] = useState<any[]>([])
   const [showResultModal, setShowResultModal] = useState(false)
   const [creationResult, setCreationResult] = useState<CreationResult | null>(null)
+  const [selectedOrganization, setSelectedOrganization] = useState<{
+    navn: string
+    organisasjonsnummer: string
+  } | null>(null)
 
   // Error state management
   const [error, setError] = useState<{
@@ -346,10 +350,10 @@ export default function SystembrukerTool() {
   const loadTestData = async () => {
     setLoading(true)
     try {
-      const roles = ["forretningsfoerer", "revisor", "regnskapsfoerere"]
       const testDataResults: { [key: string]: TestDataEntry[] } = {}
 
-      for (const role of roles) {
+      // Load role-based testdata
+      for (const role of ["forretningsfoerer", "revisor", "regnskapsfoerere"]) {
         try {
           const response = await fetch("/api/testdata", {
             method: "POST",
@@ -362,8 +366,17 @@ export default function SystembrukerTool() {
             testDataResults[role] = data.clients.map((client) => ({
               organisasjonsnavn: client.navn,
               organisasjonsnummer: client.organisasjonsnummer,
-              foedselsnummer: data.dagligLeder.foedselsnummer,
+              foedselsnummer: "", // Client organizations don't have Daglig leder data from this API
             }))
+
+            // Add the API caller's organization with correct Daglig leder data
+            if (data.dagligLeder) {
+              testDataResults[role].unshift({
+                organisasjonsnavn: data.dagligLeder.organisasjonsnavn || `${role} hovedorganisasjon`,
+                organisasjonsnummer: data.dagligLeder.organisasjonsnummer,
+                foedselsnummer: data.dagligLeder.foedselsnummer,
+              })
+            }
           }
         } catch (error) {
           console.error(`Failed to load ${role} testdata:`, error)
@@ -405,9 +418,12 @@ export default function SystembrukerTool() {
 
   const getCurrentFnr = () => {
     if (selectedRole === "manual") return manualFnr
-    if (editableOrgNr) return ""
+    if (editableOrgNr) return "" // No Fødselsnummer for manually entered org numbers
     const roleData = testData[selectedRole]
-    return roleData?.[0]?.foedselsnummer || ""
+    const currentOrgNr = getCurrentOrgNr()
+
+    const matchingEntry = roleData?.find((entry) => entry.organisasjonsnummer === currentOrgNr)
+    return matchingEntry?.foedselsnummer || ""
   }
 
   const getCurrentOrgName = () => {
@@ -689,6 +705,15 @@ export default function SystembrukerTool() {
                     placeholder="9 siffer"
                   />
                 </div>
+                <div>
+                  <Label htmlFor="fnr">Fødselsnummer</Label>
+                  <Input
+                    id="fnr"
+                    value={manualFnr}
+                    onChange={(e) => setManualFnr(e.target.value)}
+                    placeholder="11 siffer"
+                  />
+                </div>
               </div>
             )}
 
@@ -888,6 +913,10 @@ export default function SystembrukerTool() {
                             setSelectedRole(role as Role)
                             setManualOrgNr(entry.organisasjonsnummer)
                             setManualFnr(entry.foedselsnummer)
+                            setSelectedOrganization({
+                              navn: entry.organisasjonsnavn,
+                              organisasjonsnummer: entry.organisasjonsnummer,
+                            })
                           }}
                         >
                           Bruk denne
@@ -970,7 +999,7 @@ export default function SystembrukerTool() {
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
             <Card className="max-w-2xl w-full max-h-[90vh] overflow-y-auto">
               <CardHeader>
-                <CardTitle className="text-green-600">Systembruker opprettet!</CardTitle>
+                <CardTitle className="text-green-600">Systembrukerforespørsel opprettet</CardTitle>
                 <CardDescription>Systembrukeren er opprettet og venter på godkjenning</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
@@ -981,6 +1010,37 @@ export default function SystembrukerTool() {
                     <li>
                       Logg inn med fødselsnummer:{" "}
                       <strong className="font-mono">{getCurrentFnr() || "Se testdata"}</strong>
+                    </li>
+                    <li>
+                      {(() => {
+                        console.log("[v0] Success dialog - selectedOrganization:", selectedOrganization)
+                        console.log("[v0] Success dialog - systembrukerType:", systembrukerType)
+
+                        // Get organization data from the current form state or API response
+                        const orgName = selectedOrganization?.navn || getCurrentOrgName() || "organisasjon"
+                        const orgNumber =
+                          selectedOrganization?.organisasjonsnummer || getCurrentOrgNr() || "organisasjonsnummer"
+
+                        console.log("[v0] Success dialog - using orgName:", orgName, "orgNumber:", orgNumber)
+
+                        if (systembrukerType === "agent") {
+                          return `Logg inn og velg aktør ${orgName} med orgnummer ${orgNumber} for å delegere klienter til Systembruker`
+                        } else {
+                          return (
+                            <>
+                              Logg inn og velg aktør {orgName} med orgnummer {orgNumber} for å se systembrukeren på{" "}
+                              <a
+                                href="https://am.ui.tt02.altinn.no/accessmanagement/ui/systemuser/overview"
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-blue-600 underline hover:text-blue-800"
+                              >
+                                brukerflaten
+                              </a>
+                            </>
+                          )
+                        }
+                      })()}
                     </li>
                   </ol>
                 </div>

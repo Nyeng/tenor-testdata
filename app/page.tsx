@@ -254,7 +254,7 @@ const roleAccessPackageMapping = {
   regnskapsfoerere: { urn: "urn:altinn:accesspackage:regnskapsforer-lonn", displayName: "Regnskapsfører lønn" },
 }
 
-export default function SystembrukerTool() {
+export default function SystembrukerForm() {
   const [systembrukerType, setSystembrukerType] = useState<SystembrukerType>("agent")
   const [selectedRole, setSelectedRole] = useState<Role>("forretningsfoerer")
   const [showRoleDropdown, setShowRoleDropdown] = useState(false)
@@ -298,7 +298,78 @@ export default function SystembrukerTool() {
   const individualRightDropdownRef = useRef<HTMLDivElement>(null)
   const roleDropdownRef = useRef<HTMLDivElement>(null)
 
+  const [isLoadingOrgData, setIsLoadingOrgData] = useState(false)
+
   useEffect(() => {
+    const loadTestData = async () => {
+      setLoading(true)
+      setIsLoadingOrgData(true)
+      try {
+        const testDataResults: { [key: string]: TestDataEntry[] } = {}
+
+        // Load role-based testdata
+        for (const role of ["forretningsfoerer", "revisor", "regnskapsfoerere"]) {
+          try {
+            const response = await fetch("/api/testdata", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ role, clientCount: 10 }),
+            })
+
+            if (response.ok) {
+              const data: TestDataResponse = await response.json()
+              testDataResults[role] = data.clients.map((client) => ({
+                organisasjonsnavn: client.navn,
+                organisasjonsnummer: client.organisasjonsnummer,
+                foedselsnummer: "", // Client organizations don't have Daglig leder data from this API
+              }))
+
+              // Add the API caller's organization with correct Daglig leder data
+              if (data.dagligLeder) {
+                testDataResults[role].unshift({
+                  organisasjonsnavn: data.dagligLeder.organisasjonsnavn || `${role} hovedorganisasjon`,
+                  organisasjonsnummer: data.dagligLeder.organisasjonsnummer,
+                  foedselsnummer: data.dagligLeder.foedselsnummer,
+                })
+              }
+            }
+          } catch (error) {
+            console.error(`Failed to load ${role} testdata:`, error)
+          }
+        }
+
+        // Load daglig leder data
+        try {
+          const response = await fetch("/api/daglig-leder", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ antall: 10 }),
+          })
+
+          if (response.ok) {
+            const data: DagligLederResponse = await response.json()
+            testDataResults.dagligLeder = data.leaders.map((leader) => ({
+              organisasjonsnavn: leader.organisasjonsnavn,
+              organisasjonsnummer: leader.organisasjonsnummer,
+              foedselsnummer: leader.foedselsnummer,
+            }))
+          }
+        } catch (error) {
+          console.error("Failed to load daglig leder testdata:", error)
+        }
+
+        setTestData(testDataResults)
+        setTimeout(() => {
+          setIsLoadingOrgData(false)
+        }, 800)
+      } catch (error) {
+        console.error("Failed to fetch test data:", error)
+        setIsLoadingOrgData(false)
+      } finally {
+        setLoading(false)
+      }
+    }
+
     loadTestData()
   }, [])
 
@@ -347,68 +418,6 @@ export default function SystembrukerTool() {
     }
   }, [])
 
-  const loadTestData = async () => {
-    setLoading(true)
-    try {
-      const testDataResults: { [key: string]: TestDataEntry[] } = {}
-
-      // Load role-based testdata
-      for (const role of ["forretningsfoerer", "revisor", "regnskapsfoerere"]) {
-        try {
-          const response = await fetch("/api/testdata", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ role, clientCount: 10 }),
-          })
-
-          if (response.ok) {
-            const data: TestDataResponse = await response.json()
-            testDataResults[role] = data.clients.map((client) => ({
-              organisasjonsnavn: client.navn,
-              organisasjonsnummer: client.organisasjonsnummer,
-              foedselsnummer: "", // Client organizations don't have Daglig leder data from this API
-            }))
-
-            // Add the API caller's organization with correct Daglig leder data
-            if (data.dagligLeder) {
-              testDataResults[role].unshift({
-                organisasjonsnavn: data.dagligLeder.organisasjonsnavn || `${role} hovedorganisasjon`,
-                organisasjonsnummer: data.dagligLeder.organisasjonsnummer,
-                foedselsnummer: data.dagligLeder.foedselsnummer,
-              })
-            }
-          }
-        } catch (error) {
-          console.error(`Failed to load ${role} testdata:`, error)
-        }
-      }
-
-      // Load daglig leder data
-      try {
-        const response = await fetch("/api/daglig-leder", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ antall: 10 }),
-        })
-
-        if (response.ok) {
-          const data: DagligLederResponse = await response.json()
-          testDataResults.dagligLeder = data.leaders.map((leader) => ({
-            organisasjonsnavn: leader.organisasjonsnavn,
-            organisasjonsnummer: leader.organisasjonsnummer,
-            foedselsnummer: leader.foedselsnummer,
-          }))
-        }
-      } catch (error) {
-        console.error("Failed to load daglig leder testdata:", error)
-      }
-
-      setTestData(testDataResults)
-    } finally {
-      setLoading(false)
-    }
-  }
-
   const getCurrentOrgNr = () => {
     if (selectedRole === "manual") return manualOrgNr
     if (editableOrgNr) return editableOrgNr
@@ -417,7 +426,7 @@ export default function SystembrukerTool() {
   }
 
   const getCurrentFnr = () => {
-    if (selectedRole === "manual") return manualFnr
+    if (selectedRole === "manual") return "" // No fødselsnummer needed for manual
     if (editableOrgNr) return "" // No Fødselsnummer for manually entered org numbers
     const roleData = testData[selectedRole]
     const currentOrgNr = getCurrentOrgNr()
@@ -468,6 +477,15 @@ export default function SystembrukerTool() {
       setError({
         title: "Validering feilet",
         message: "Organisasjonsnummer må fylles ut",
+      })
+      setShowErrorModal(true)
+      return
+    }
+
+    if (selectedRole !== "manual" && !getCurrentFnr()) {
+      setError({
+        title: "Validering feilet",
+        message: "Fødselsnummer må fylles ut",
       })
       setShowErrorModal(true)
       return
@@ -698,49 +716,72 @@ export default function SystembrukerTool() {
               <div className="grid grid-cols-1 gap-4">
                 <div>
                   <Label htmlFor="orgNr">Organisasjonsnummer</Label>
-                  <Input
-                    id="orgNr"
-                    value={manualOrgNr}
-                    onChange={(e) => setManualOrgNr(e.target.value)}
-                    placeholder="9 siffer"
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="fnr">Fødselsnummer</Label>
-                  <Input
-                    id="fnr"
-                    value={manualFnr}
-                    onChange={(e) => setManualFnr(e.target.value)}
-                    placeholder="11 siffer"
-                  />
+                  {isLoadingOrgData ? (
+                    <div className="h-10 border border-input rounded-md px-3 py-2 bg-background flex items-center">
+                      <div className="animate-pulse text-muted-foreground/40 select-none">████████████</div>
+                    </div>
+                  ) : (
+                    <Input
+                      id="orgNr"
+                      value={manualOrgNr}
+                      onChange={(e) => setManualOrgNr(e.target.value)}
+                      placeholder="9 siffer"
+                    />
+                  )}
                 </div>
               </div>
             )}
 
-            {/* Auto-filled values display with editable org number */}
+            {/* Auto-filled values display with non-editable org number */}
             {selectedRole !== "manual" && (
               <div className="space-y-4">
                 <div>
                   <Label htmlFor="editableOrgNr">Organisasjonsnummer</Label>
-                  <Input
-                    id="editableOrgNr"
-                    value={editableOrgNr || testData[selectedRole]?.[0]?.organisasjonsnummer || ""}
-                    onChange={(e) => setEditableOrgNr(e.target.value)}
-                    placeholder="9 siffer"
-                  />
+                  {isLoadingOrgData ? (
+                    <div className="h-10 border border-input rounded-md px-3 py-2 bg-background flex items-center">
+                      <div className="animate-pulse text-muted-foreground/40 select-none">████████████</div>
+                    </div>
+                  ) : (
+                    <Input
+                      id="editableOrgNr"
+                      value={editableOrgNr || testData[selectedRole]?.[0]?.organisasjonsnummer || ""}
+                      readOnly
+                      className="bg-muted cursor-not-allowed"
+                      placeholder="9 siffer"
+                    />
+                  )}
                 </div>
                 {!editableOrgNr && (
                   <>
-                    {getCurrentOrgName() && (
+                    {(getCurrentOrgName() || isLoadingOrgData) && (
                       <div>
-                        <Label>Organisasjonsnavn</Label>
-                        <div className="p-2 bg-gray-100 rounded border text-sm">{getCurrentOrgName()}</div>
+                        <Label htmlFor="orgName">Organisasjonsnavn</Label>
+                        {isLoadingOrgData ? (
+                          <div className="h-10 border border-input rounded-md px-3 py-2 bg-background flex items-center">
+                            <div className="animate-pulse text-muted-foreground/40 select-none">
+                              ████████████████████████
+                            </div>
+                          </div>
+                        ) : (
+                          <Input
+                            id="orgName"
+                            value={getCurrentOrgName()}
+                            readOnly
+                            className="bg-muted cursor-not-allowed"
+                          />
+                        )}
                       </div>
                     )}
-                    {getCurrentFnr() && (
+                    {(getCurrentFnr() || isLoadingOrgData) && (
                       <div>
-                        <Label>Fødselsnummer (daglig leder)</Label>
-                        <div className="p-2 bg-gray-100 rounded border text-sm font-mono">{getCurrentFnr()}</div>
+                        <Label htmlFor="fnr">Fødselsnummer (daglig leder)</Label>
+                        {isLoadingOrgData ? (
+                          <div className="h-10 border border-input rounded-md px-3 py-2 bg-background flex items-center">
+                            <div className="animate-pulse text-muted-foreground/40 select-none">███████████████</div>
+                          </div>
+                        ) : (
+                          <Input id="fnr" value={getCurrentFnr()} readOnly className="bg-muted cursor-not-allowed" />
+                        )}
                       </div>
                     )}
                   </>

@@ -570,7 +570,6 @@ export default function SystembrukerTool() {
         <div className="flex justify-between items-center">
           <div>
             <h1 className="text-3xl font-bold text-gray-900">Systembruker demoverktøy</h1>
-            <p className="text-gray-600">Opprett systembrukere via API for testing</p>
           </div>
           <div className="flex items-center gap-2">
             <Label htmlFor="environment">Miljø:</Label>
@@ -589,7 +588,6 @@ export default function SystembrukerTool() {
         <Card className="border-2 border-blue-200">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">Opprett Systembruker</CardTitle>
-            <CardDescription>Velg type systembruker og fyll ut nødvendige opplysninger</CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
             {/* Systembruker Type Selection */}

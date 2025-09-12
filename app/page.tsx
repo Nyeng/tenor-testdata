@@ -385,6 +385,8 @@ export default function SystembrukerForm() {
     } else if (systembrukerType === "agent") {
       // Reset selections for roles without auto-mapping (like dagligLeder, manual)
       setSelectedAccessPackages([])
+    } else if (systembrukerType === "standard") {
+      setSelectedAccessPackages([])
     }
   }, [selectedRole, systembrukerType])
 
@@ -637,7 +639,10 @@ export default function SystembrukerForm() {
                 </Button>
                 <Button
                   variant={systembrukerType === "standard" ? "default" : "outline"}
-                  onClick={() => setSystembrukerType("standard")}
+                  onClick={() => {
+                    setSystembrukerType("standard")
+                    setSelectedAccessPackages([])
+                  }}
                   className="flex-1"
                 >
                   Standard Systembruker
@@ -797,6 +802,7 @@ export default function SystembrukerForm() {
                   placeholder="Søk etter tilgangspakker..."
                   value={accessPackageSearch}
                   onChange={(e) => setAccessPackageSearch(e.target.value)}
+                  onClick={() => setShowAccessPackageDropdown(true)}
                   onFocus={() => setShowAccessPackageDropdown(true)}
                 />
                 {showAccessPackageDropdown && (
@@ -846,6 +852,7 @@ export default function SystembrukerForm() {
                     placeholder="Søk etter enkeltrettigheter..."
                     value={individualRightSearch}
                     onChange={(e) => setIndividualRightSearch(e.target.value)}
+                    onClick={() => setShowIndividualRightDropdown(true)}
                     onFocus={() => setShowIndividualRightDropdown(true)}
                   />
                   {showIndividualRightDropdown && (

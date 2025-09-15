@@ -385,8 +385,6 @@ export default function SystembrukerForm() {
     } else if (systembrukerType === "agent") {
       // Reset selections for roles without auto-mapping (like dagligLeder, manual)
       setSelectedAccessPackages([])
-    } else if (systembrukerType === "standard") {
-      setSelectedAccessPackages([])
     }
   }, [selectedRole, systembrukerType])
 
@@ -635,7 +633,7 @@ export default function SystembrukerForm() {
                   onClick={() => setSystembrukerType("agent")}
                   className="flex-1"
                 >
-                  Agent Systembruker
+                  Agent
                 </Button>
                 <Button
                   variant={systembrukerType === "standard" ? "default" : "outline"}
@@ -645,7 +643,7 @@ export default function SystembrukerForm() {
                   }}
                   className="flex-1"
                 >
-                  Standard Systembruker
+                  Egen
                 </Button>
               </div>
               <p className="text-sm text-gray-600">

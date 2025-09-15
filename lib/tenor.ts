@@ -42,14 +42,28 @@ export async function searchTenor({
     })
 
     if (!response.ok) {
-      console.error(`Tenor API error: ${response.status}`)
-      return null
+      const errorText = await response.text().catch(() => "Unknown error")
+      console.error(`Tenor API error: ${response.status} - ${errorText}`)
+
+      if (response.status === 500) {
+        throw new Error(
+          `Tenor API is currently unavailable (HTTP 500). This is likely a temporary issue with the external test data service.`,
+        )
+      } else if (response.status === 401 || response.status === 403) {
+        throw new Error(
+          `Authentication failed with Tenor API (HTTP ${response.status}). Please check Maskinporten credentials.`,
+        )
+      } else {
+        throw new Error(`Tenor API request failed (HTTP ${response.status}): ${errorText}`)
+      }
     }
 
     return await response.json()
   } catch (error) {
-    console.error("Tenor search failed:", error)
-    return null
+    if (error instanceof Error) {
+      throw error
+    }
+    throw new Error(`Tenor search failed: ${error}`)
   }
 }
 

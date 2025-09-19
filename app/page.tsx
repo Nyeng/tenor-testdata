@@ -830,6 +830,7 @@ export default function SystembrukerForm() {
                     {pkg.displayName}
                     <button
                       className="chip-remove-button ml-1 hover:bg-red-100 rounded-full p-0.5"
+                      aria-label={`Fjern ${pkg.displayName} fra valgte tilgangspakker`}
                       onClick={() => {
                         setSelectedAccessPackages((prev) => prev.filter((p) => p.urn !== pkg.urn))
                       }}
@@ -880,6 +881,7 @@ export default function SystembrukerForm() {
                       {right.displayName}
                       <button
                         className="chip-remove-button ml-1 hover:bg-red-100 rounded-full p-0.5"
+                        aria-label={`Fjern ${right.displayName} fra valgte individuelle rettigheter`}
                         onClick={() => {
                           setSelectedIndividualRights((prev) => prev.filter((r) => r.name !== right.name))
                         }}

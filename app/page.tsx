@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from "react"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
@@ -55,6 +55,7 @@ interface CreationResult {
   partyOrgNo: string
   status: string
   systemId: string
+  externalRef?: string
 }
 
 const accessPackages: AccessPackage[] = [
@@ -91,7 +92,7 @@ const accessPackages: AccessPackage[] = [
   },
   { urn: "urn:altinn:accesspackage:kommuneoverlege", displayName: "Kommuneoverlege" },
   {
-    urn: "urn:altinn:accesspackage:helsetjenester-personopplysinger-saerlig-kategori",
+    urn: "urn:altinn:accesspackage:helsetjenester-personopplysninger-saerlig-kategori",
     displayName: "Helsetjenester personopplysninger særlig kategori",
   },
   { urn: "urn:altinn:accesspackage:helsetjenester", displayName: "Helsetjenester" },
@@ -446,8 +447,10 @@ export default function SystembrukerForm() {
       return "312605031_Virksomhetsbruker"
     }
 
+    const externalRef = crypto.randomUUID()
+
     const basePayload = {
-      externalRef: crypto.randomUUID(),
+      externalRef: externalRef,
       systemId: getSystemId(),
       partyOrgNo: getCurrentOrgNr(),
       accessPackages: selectedAccessPackages.map((pkg) => ({ urn: pkg.urn })),
@@ -470,6 +473,15 @@ export default function SystembrukerForm() {
     }
 
     return basePayload
+  }
+
+  const getBrukerflatenUrl = () => {
+    const env = selectedEnvironment.toLowerCase()
+    if (env === "tt02") {
+      return "https://am.ui.tt02.altinn.no/accessmanagement/ui/systemuser/overview"
+    }
+    // AT environments use .cloud domain
+    return `https://am.ui.${env}.altinn.cloud/accessmanagement/ui/systemuser/overview`
   }
 
   const handleCreateSystembruker = async () => {
@@ -548,7 +560,7 @@ export default function SystembrukerForm() {
           token,
           requestBody: payload,
           environment: selectedEnvironment.toLowerCase(),
-          endpoint: endpoint, // Use the endpoint variable for clarity
+          endpoint: endpoint,
           selectedIndividualRights: selectedIndividualRights,
         }),
       })
@@ -576,9 +588,10 @@ export default function SystembrukerForm() {
       }
 
       const result = await response.json()
-      setCreationResult(result)
+      const resultWithRef = { ...result, externalRef: payload.externalRef }
+      setCreationResult(resultWithRef)
       setShowResultModal(true)
-      setCreationHistory((prev) => [result, ...prev.slice(0, 2)])
+      setCreationHistory((prev) => [resultWithRef, ...prev.slice(0, 2)])
     } catch (error) {
       setError({
         title: "Unexpected error",
@@ -615,6 +628,8 @@ export default function SystembrukerForm() {
             >
               <option value="TT02">TT02</option>
               <option value="AT22">AT22</option>
+              <option value="AT23">AT23</option>
+              <option value="AT24">AT24</option>
             </select>
           </div>
         </div>
@@ -1047,8 +1062,7 @@ export default function SystembrukerForm() {
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
             <Card className="max-w-2xl w-full max-h-[90vh] overflow-y-auto">
               <CardHeader>
-                <CardTitle className="text-green-600">Systembrukerforespørsel opprettet</CardTitle>
-                <CardDescription>Systembrukeren er opprettet og venter på godkjenning</CardDescription>
+                <CardTitle className="text-blue-900 flex items-center gap-2">Systembruker opprettet</CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="p-4 bg-blue-50 rounded-lg">
@@ -1064,7 +1078,6 @@ export default function SystembrukerForm() {
                         console.log("[v0] Success dialog - selectedOrganization:", selectedOrganization)
                         console.log("[v0] Success dialog - systembrukerType:", systembrukerType)
 
-                        // Get organization data from the current form state or API response
                         const orgName = selectedOrganization?.navn || getCurrentOrgName() || "organisasjon"
                         const orgNumber =
                           selectedOrganization?.organisasjonsnummer || getCurrentOrgNr() || "organisasjonsnummer"
@@ -1078,7 +1091,7 @@ export default function SystembrukerForm() {
                             <>
                               Logg inn og velg aktør {orgName} med orgnummer {orgNumber} for å se systembrukeren på{" "}
                               <a
-                                href="https://am.ui.tt02.altinn.no/accessmanagement/ui/systemuser/overview"
+                                href={getBrukerflatenUrl()}
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 className="text-blue-600 underline hover:text-blue-800"
@@ -1101,6 +1114,12 @@ export default function SystembrukerForm() {
                       <Copy className="h-4 w-4" />
                     </Button>
                   </div>
+                  {creationResult.externalRef && (
+                    <div className="mt-1 text-sm text-gray-600">
+                      <span className="font-medium">External Reference:</span>{" "}
+                      <span className="font-mono">{creationResult.externalRef}</span>
+                    </div>
+                  )}
                 </div>
 
                 <div className="flex gap-2 pt-4">

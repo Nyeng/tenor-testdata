@@ -9,7 +9,22 @@ export async function POST(request: NextRequest) {
     console.log("[v0] Endpoint:", endpoint)
     console.log("[v0] Request body:", JSON.stringify(requestBody, null, 2))
 
-    const baseUrl = environment === "tt02" ? "https://platform.tt02.altinn.no" : "https://platform.at22.altinn.cloud"
+    const getBaseUrl = (env: string) => {
+      switch (env) {
+        case "tt02":
+          return "https://platform.tt02.altinn.no"
+        case "at22":
+          return "https://platform.at22.altinn.cloud"
+        case "at23":
+          return "https://platform.at23.altinn.cloud"
+        case "at24":
+          return "https://platform.at24.altinn.cloud"
+        default:
+          return "https://platform.tt02.altinn.no"
+      }
+    }
+
+    const baseUrl = getBaseUrl(environment)
 
     const url =
       endpoint === "vendor"

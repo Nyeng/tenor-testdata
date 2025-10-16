@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
-import { Building2, Settings, Calculator, User, ChevronDown, ChevronRight, Copy, X } from "lucide-react"
+import { Building2, Settings, Calculator, User, ChevronDown, ChevronRight, Copy, X, AlertCircle } from "lucide-react"
 
 type SystembrukerType = "agent" | "standard"
 type Role = "forretningsfoerer" | "revisor" | "regnskapsfoerere" | "dagligLeder" | "manual"
@@ -243,7 +243,7 @@ const roleConfig = {
   revisor: { name: "Revisor", icon: Settings, color: "bg-green-500" },
   regnskapsfoerere: { name: "Regnskapsfører", icon: Calculator, color: "bg-purple-500" },
   dagligLeder: { name: "Daglig leder", icon: User, color: "bg-orange-500" },
-  manual: { name: "Bruk eget orgnr", icon: User, color: "bg-gray-500" },
+  manual: { name: "Bruk eget organisasjonsnummer", icon: User, color: "bg-gray-500" },
 }
 
 const roleAccessPackageMapping = {
@@ -300,6 +300,10 @@ export default function SystembrukerForm() {
   const roleDropdownRef = useRef<HTMLDivElement>(null)
 
   const [isLoadingOrgData, setIsLoadingOrgData] = useState(false)
+  const [isLoadingManualDagligLeder, setIsLoadingManualDagligLeder] = useState(false)
+  const [manualOrgName, setManualOrgName] = useState("")
+  const [manualDagligLederFnr, setManualDagligLederFnr] = useState("")
+  const [dagligLederError, setDagligLederError] = useState<string | null>(null)
 
   useEffect(() => {
     const loadTestData = async () => {
@@ -375,6 +379,49 @@ export default function SystembrukerForm() {
   }, [])
 
   useEffect(() => {
+    const fetchDagligLederForManualOrg = async () => {
+      if (selectedRole === "manual" && manualOrgNr && /^\d{9}$/.test(manualOrgNr)) {
+        setIsLoadingManualDagligLeder(true)
+        setManualOrgName("")
+        setManualDagligLederFnr("")
+        setDagligLederError(null)
+
+        try {
+          const response = await fetch("/api/daglig-leder-by-org", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ organisasjonsnummer: manualOrgNr }),
+          })
+
+          if (response.ok) {
+            const data = await response.json()
+            setManualOrgName(data.organisasjonsnavn)
+            setManualDagligLederFnr(data.foedselsnummer)
+            console.log("[v0] Found daglig leder for manual org:", data)
+          } else {
+            console.log("[v0] No daglig leder found for org:", manualOrgNr)
+            setDagligLederError("Fant ikke daglig leder for dette organisasjonsnummeret")
+          }
+        } catch (error) {
+          console.error("[v0] Error fetching daglig leder for manual org:", error)
+          setDagligLederError("Kunne ikke hente daglig leder. Prøv igjen senere.")
+        } finally {
+          setTimeout(() => {
+            setIsLoadingManualDagligLeder(false)
+          }, 400)
+        }
+      } else {
+        setManualOrgName("")
+        setManualDagligLederFnr("")
+        setDagligLederError(null)
+      }
+    }
+
+    const debounceTimer = setTimeout(fetchDagligLederForManualOrg, 500)
+    return () => clearTimeout(debounceTimer)
+  }, [manualOrgNr, selectedRole])
+
+  useEffect(() => {
     setEditableOrgNr("")
   }, [selectedRole])
 
@@ -427,7 +474,7 @@ export default function SystembrukerForm() {
   }
 
   const getCurrentFnr = () => {
-    if (selectedRole === "manual") return "" // No fødselsnummer needed for manual
+    if (selectedRole === "manual") return manualDagligLederFnr
     if (editableOrgNr) return "" // No Fødselsnummer for manually entered org numbers
     const roleData = testData[selectedRole]
     const currentOrgNr = getCurrentOrgNr()
@@ -437,7 +484,8 @@ export default function SystembrukerForm() {
   }
 
   const getCurrentOrgName = () => {
-    if (selectedRole === "manual" || editableOrgNr) return ""
+    if (selectedRole === "manual") return manualOrgName
+    if (editableOrgNr) return ""
     const roleData = testData[selectedRole]
     return roleData?.[0]?.organisasjonsnavn || ""
   }
@@ -747,6 +795,48 @@ export default function SystembrukerForm() {
                     />
                   )}
                 </div>
+                {(manualOrgName || isLoadingManualDagligLeder) && (
+                  <div>
+                    <Label htmlFor="manualOrgName">Organisasjonsnavn</Label>
+                    {isLoadingManualDagligLeder ? (
+                      <div className="h-10 border border-input rounded-md px-3 py-2 bg-background flex items-center">
+                        <div className="animate-pulse text-muted-foreground/40 select-none">
+                          ████████████████████████
+                        </div>
+                      </div>
+                    ) : (
+                      <Input
+                        id="manualOrgName"
+                        value={manualOrgName}
+                        readOnly
+                        className="bg-muted cursor-not-allowed"
+                      />
+                    )}
+                  </div>
+                )}
+                {(manualDagligLederFnr || isLoadingManualDagligLeder) && (
+                  <div>
+                    <Label htmlFor="manualDagligLederFnr">Fødselsnummer (daglig leder)</Label>
+                    {isLoadingManualDagligLeder ? (
+                      <div className="h-10 border border-input rounded-md px-3 py-2 bg-background flex items-center">
+                        <div className="animate-pulse text-muted-foreground/40 select-none">███████████████</div>
+                      </div>
+                    ) : (
+                      <Input
+                        id="manualDagligLederFnr"
+                        value={manualDagligLederFnr}
+                        readOnly
+                        className="bg-muted cursor-not-allowed"
+                      />
+                    )}
+                  </div>
+                )}
+                {dagligLederError && !isLoadingManualDagligLeder && (
+                  <div className="flex items-start gap-2 p-3 bg-amber-50 border border-amber-200 rounded-md">
+                    <AlertCircle className="h-4 w-4 text-amber-600 mt-0.5 flex-shrink-0" />
+                    <p className="text-sm text-amber-800">{dagligLederError}</p>
+                  </div>
+                )}
               </div>
             )}
 

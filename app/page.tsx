@@ -262,6 +262,7 @@ export default function SystembrukerForm() {
   const [manualOrgNr, setManualOrgNr] = useState("")
   const [manualFnr, setManualFnr] = useState("")
   const [editableOrgNr, setEditableOrgNr] = useState("")
+  const [integrationTitle, setIntegrationTitle] = useState("")
   const [selectedAccessPackages, setSelectedAccessPackages] = useState<AccessPackage[]>([])
   const [selectedIndividualRights, setSelectedIndividualRights] = useState<IndividualRight[]>([])
   const [accessPackageSearch, setAccessPackageSearch] = useState("")
@@ -497,10 +498,11 @@ export default function SystembrukerForm() {
 
     const externalRef = crypto.randomUUID()
 
-    const basePayload = {
+    const basePayload: any = {
       externalRef: externalRef,
       systemId: getSystemId(),
       partyOrgNo: getCurrentOrgNr(),
+      ...(integrationTitle && { integrationTitle: integrationTitle }),
       accessPackages: selectedAccessPackages.map((pkg) => ({ urn: pkg.urn })),
       status: "New",
       redirectUrl: "",
@@ -896,6 +898,17 @@ export default function SystembrukerForm() {
                 )}
               </div>
             )}
+
+            <div>
+              <Label htmlFor="integrationTitle">Navn på Systembruker (valgfritt)</Label>
+              <Input
+                id="integrationTitle"
+                value={integrationTitle}
+                onChange={(e) => setIntegrationTitle(e.target.value)}
+                placeholder="Skriv inn navn på systembruker"
+              />
+              <p className="text-sm text-gray-600 mt-1">Dette navnet vil bli brukt til å identifisere systembrukeren</p>
+            </div>
 
             {/* Access Packages */}
             <div>

@@ -700,22 +700,24 @@ export default function SystembrukerForm() {
   )
 
   return (
-    <div className="min-h-screen bg-gray-50 p-4 md:p-8">
+    <div className="min-h-screen bg-background p-4 md:p-8">
       <div className="max-w-5xl mx-auto space-y-8">
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 pb-4">
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 pb-6">
           <div>
-            <h1 className="text-4xl font-bold text-gray-900">Tilgangsinfo demoverktøy</h1>
-            <p className="text-muted-foreground mt-2">Opprett og administrer systembrukere enkelt</p>
+            <h1 className="text-4xl md:text-5xl font-bold text-foreground">Tilgangsinfo demoverktøy</h1>
+            <p className="text-muted-foreground mt-3 text-base leading-relaxed">
+              Opprett og administrer systembrukere enkelt
+            </p>
           </div>
-          <div className="flex items-center gap-3 bg-white px-4 py-2 rounded-lg shadow-sm border">
-            <Label htmlFor="environment" className="font-medium">
+          <div className="flex items-center gap-3 bg-card px-6 py-3 rounded-xl shadow-sm border border-border">
+            <Label htmlFor="environment" className="font-semibold text-foreground">
               Miljø:
             </Label>
             <select
               id="environment"
               value={selectedEnvironment}
               onChange={(e) => setSelectedEnvironment(e.target.value)}
-              className="px-4 py-2 border rounded-lg bg-white hover:border-primary transition-colors focus:ring-2 focus:ring-primary/30"
+              className="px-4 py-2 border border-border rounded-lg bg-card text-foreground hover:border-primary transition-all focus:ring-2 focus:ring-primary/20 focus:border-primary"
             >
               <option value="TT02">TT02</option>
               <option value="AT22">AT22</option>
@@ -725,19 +727,16 @@ export default function SystembrukerForm() {
           </div>
         </div>
 
-        <Card className="shadow-md">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-2xl">Opprett Systembruker-forespørsel</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-6 pt-6">
+        <Card className="shadow-lg rounded-2xl border-border animate-fade-in-up">
+          <CardContent className="space-y-8 pt-8">
             {/* Systembruker Type Selection */}
             <div>
-              <Label className="text-base font-semibold mb-3 block">Type</Label>
+              <Label className="text-lg font-semibold mb-4 block text-foreground">Type</Label>
               <div className="flex gap-3 mt-2">
                 <Button
                   variant={systembrukerType === "agent" ? "default" : "outline"}
                   onClick={() => setSystembrukerType("agent")}
-                  className="flex-1 h-12 text-base font-medium"
+                  className="flex-1 h-11 text-base font-semibold rounded-xl transition-all hover:scale-[1.02]"
                 >
                   Agent
                 </Button>
@@ -747,12 +746,12 @@ export default function SystembrukerForm() {
                     setSystembrukerType("standard")
                     setSelectedAccessPackages([])
                   }}
-                  className="flex-1 h-12 text-base font-medium"
+                  className="flex-1 h-11 text-base font-semibold rounded-xl transition-all hover:scale-[1.02]"
                 >
                   Egen
                 </Button>
               </div>
-              <p className="text-sm text-muted-foreground mt-3 leading-relaxed">
+              <p className="text-sm text-muted-foreground mt-4 leading-relaxed">
                 {systembrukerType === "agent"
                   ? "Lar deg opprette Systembruker med tilgangspakker for klientforhold"
                   : "Standard systembruker med enkeltrettigheter og tilgangspakker"}
@@ -761,14 +760,14 @@ export default function SystembrukerForm() {
 
             {/* Role Selection */}
             <div>
-              <Label className="text-base font-semibold mb-3 block">Rolle</Label>
-              <p className="text-sm text-muted-foreground mt-1 mb-3 leading-relaxed">
+              <Label className="text-lg font-semibold mb-4 block text-foreground">Rolle</Label>
+              <p className="text-sm text-muted-foreground mt-1 mb-4 leading-relaxed">
                 Henter testorganisasjon fra{" "}
                 <a
                   href="https://www.digdir.no/felleslosninger/tenor-testdatasok/1284"
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-blue-600 hover:text-blue-800 underline font-medium"
+                  className="text-primary hover:text-primary/80 underline font-medium transition-colors"
                 >
                   Tenor Testdatasøk
                 </a>
@@ -780,7 +779,7 @@ export default function SystembrukerForm() {
                 <Button
                   variant="outline"
                   onClick={() => setShowRoleDropdown(!showRoleDropdown)}
-                  className="w-full justify-between h-14 text-base"
+                  className="w-full justify-between h-16 text-base rounded-xl border-border hover:border-primary transition-all"
                 >
                   <div className="flex items-center gap-3">
                     {(() => {
@@ -788,30 +787,30 @@ export default function SystembrukerForm() {
                       const Icon = config.icon
                       return (
                         <>
-                          <Icon className="h-5 w-5" />
-                          <span className="font-medium">{config.name}</span>
+                          <Icon className="h-5 w-5 text-primary" />
+                          <span className="font-semibold text-foreground">{config.name}</span>
                         </>
                       )
                     })()}
                   </div>
-                  <ChevronDown className="h-5 w-5" />
+                  <ChevronDown className="h-5 w-5 text-muted-foreground" />
                 </Button>
                 {showRoleDropdown && (
-                  <div className="absolute z-50 w-full mt-2 bg-white border rounded-lg shadow-lg">
+                  <div className="absolute z-50 w-full mt-2 bg-card border border-border rounded-xl shadow-lg overflow-hidden">
                     {Object.entries(roleConfig).map(([key, config]) => {
                       const Icon = config.icon
                       return (
                         <button
                           key={key}
-                          className="w-full px-4 py-3 text-left hover:bg-gray-50 flex items-center gap-3 transition-colors first:rounded-t-lg last:rounded-b-lg"
+                          className="w-full px-6 py-4 text-left hover:bg-accent/50 flex items-center gap-3 transition-colors"
                           onMouseDown={(e) => {
                             e.preventDefault()
                             setSelectedRole(key as Role)
                             setShowRoleDropdown(false)
                           }}
                         >
-                          <Icon className="h-5 w-5" />
-                          <span className="font-medium">{config.name}</span>
+                          <Icon className="h-5 w-5 text-primary" />
+                          <span className="font-semibold text-foreground">{config.name}</span>
                         </button>
                       )
                     })}
@@ -822,13 +821,13 @@ export default function SystembrukerForm() {
 
             {/* Manual Input Fields */}
             {selectedRole === "manual" && (
-              <div className="grid grid-cols-1 gap-4 p-4 bg-gray-50 rounded-lg border">
+              <div className="grid grid-cols-1 gap-6 p-6 bg-muted/50 rounded-xl border border-border">
                 <div>
-                  <Label htmlFor="orgNr" className="font-medium">
+                  <Label htmlFor="orgNr" className="font-semibold text-foreground mb-2 block">
                     Organisasjonsnummer
                   </Label>
                   {isLoadingOrgData ? (
-                    <div className="h-12 border border-input rounded-lg px-3 py-2 bg-background flex items-center mt-2">
+                    <div className="h-14 border border-border rounded-lg px-4 py-3 bg-card flex items-center mt-2">
                       <div className="animate-pulse text-muted-foreground/40 select-none">████████████</div>
                     </div>
                   ) : (
@@ -837,17 +836,17 @@ export default function SystembrukerForm() {
                       value={manualOrgNr}
                       onChange={(e) => setManualOrgNr(e.target.value)}
                       placeholder="9 siffer"
-                      className="mt-2 h-12"
+                      className="mt-2 h-14 rounded-lg border-border focus:border-primary"
                     />
                   )}
                 </div>
                 {(manualOrgName || isLoadingManualDagligLeder) && (
                   <div>
-                    <Label htmlFor="manualOrgName" className="font-medium">
+                    <Label htmlFor="manualOrgName" className="font-semibold text-foreground mb-2 block">
                       Organisasjonsnavn
                     </Label>
                     {isLoadingManualDagligLeder ? (
-                      <div className="h-12 border border-input rounded-lg px-3 py-2 bg-background flex items-center mt-2">
+                      <div className="h-14 border border-border rounded-lg px-4 py-3 bg-card flex items-center mt-2">
                         <div className="animate-pulse text-muted-foreground/40 select-none">
                           ████████████████████████
                         </div>
@@ -857,18 +856,18 @@ export default function SystembrukerForm() {
                         id="manualOrgName"
                         value={manualOrgName}
                         readOnly
-                        className="bg-muted cursor-not-allowed mt-2 h-12"
+                        className="bg-muted cursor-not-allowed mt-2 h-14 rounded-lg"
                       />
                     )}
                   </div>
                 )}
                 {(manualDagligLederFnr || isLoadingManualDagligLeder) && (
                   <div>
-                    <Label htmlFor="manualDagligLederFnr" className="font-medium">
+                    <Label htmlFor="manualDagligLederFnr" className="font-semibold text-foreground mb-2 block">
                       Fødselsnummer (daglig leder)
                     </Label>
                     {isLoadingManualDagligLeder ? (
-                      <div className="h-12 border border-input rounded-lg px-3 py-2 bg-background flex items-center mt-2">
+                      <div className="h-14 border border-border rounded-lg px-4 py-3 bg-card flex items-center mt-2">
                         <div className="animate-pulse text-muted-foreground/40 select-none">███████████████</div>
                       </div>
                     ) : (
@@ -876,29 +875,29 @@ export default function SystembrukerForm() {
                         id="manualDagligLederFnr"
                         value={manualDagligLederFnr}
                         readOnly
-                        className="bg-muted cursor-not-allowed mt-2 h-12"
+                        className="bg-muted cursor-not-allowed mt-2 h-14 rounded-lg"
                       />
                     )}
                   </div>
                 )}
                 {dagligLederError && !isLoadingManualDagligLeder && (
-                  <div className="flex items-start gap-2 p-3 bg-amber-50 border border-amber-200 rounded-lg">
-                    <AlertCircle className="h-4 w-4 text-amber-600 mt-0.5 flex-shrink-0" />
-                    <p className="text-sm text-amber-800">{dagligLederError}</p>
+                  <div className="flex items-start gap-3 p-4 bg-amber-50 border border-amber-200 rounded-xl">
+                    <AlertCircle className="h-5 w-5 text-amber-600 mt-0.5 flex-shrink-0" />
+                    <p className="text-sm text-amber-800 leading-relaxed">{dagligLederError}</p>
                   </div>
                 )}
               </div>
             )}
 
-            {/* Auto-filled values display with non-editable org number */}
+            {/* Auto-filled values display */}
             {selectedRole !== "manual" && (
-              <div className="space-y-4 p-4 bg-gray-50 rounded-lg border">
+              <div className="space-y-6 p-6 bg-muted/50 rounded-xl border border-border">
                 <div>
-                  <Label htmlFor="editableOrgNr" className="font-medium">
+                  <Label htmlFor="editableOrgNr" className="font-semibold text-foreground mb-2 block">
                     Organisasjonsnummer
                   </Label>
                   {isLoadingOrgData ? (
-                    <div className="h-12 border border-input rounded-lg px-3 py-2 bg-background flex items-center mt-2">
+                    <div className="h-14 border border-border rounded-lg px-4 py-3 bg-card flex items-center mt-2">
                       <div className="animate-pulse text-muted-foreground/40 select-none">████████████</div>
                     </div>
                   ) : (
@@ -906,7 +905,7 @@ export default function SystembrukerForm() {
                       id="editableOrgNr"
                       value={editableOrgNr || testData[selectedRole]?.[0]?.organisasjonsnummer || ""}
                       readOnly
-                      className="bg-muted cursor-not-allowed mt-2 h-12"
+                      className="bg-muted cursor-not-allowed mt-2 h-14 rounded-lg"
                       placeholder="9 siffer"
                     />
                   )}
@@ -915,11 +914,11 @@ export default function SystembrukerForm() {
                   <>
                     {(getCurrentOrgName() || isLoadingOrgData) && (
                       <div>
-                        <Label htmlFor="orgName" className="font-medium">
+                        <Label htmlFor="orgName" className="font-semibold text-foreground mb-2 block">
                           Organisasjonsnavn
                         </Label>
                         {isLoadingOrgData ? (
-                          <div className="h-12 border border-input rounded-lg px-3 py-2 bg-background flex items-center mt-2">
+                          <div className="h-14 border border-border rounded-lg px-4 py-3 bg-card flex items-center mt-2">
                             <div className="animate-pulse text-muted-foreground/40 select-none">
                               ████████████████████████
                             </div>
@@ -929,18 +928,18 @@ export default function SystembrukerForm() {
                             id="orgName"
                             value={getCurrentOrgName()}
                             readOnly
-                            className="bg-muted cursor-not-allowed mt-2 h-12"
+                            className="bg-muted cursor-not-allowed mt-2 h-14 rounded-lg"
                           />
                         )}
                       </div>
                     )}
                     {(getCurrentFnr() || isLoadingOrgData) && (
                       <div>
-                        <Label htmlFor="fnr" className="font-medium">
+                        <Label htmlFor="fnr" className="font-semibold text-foreground mb-2 block">
                           Fødselsnummer (daglig leder)
                         </Label>
                         {isLoadingOrgData ? (
-                          <div className="h-12 border border-input rounded-lg px-3 py-2 bg-background flex items-center mt-2">
+                          <div className="h-14 border border-border rounded-lg px-4 py-3 bg-card flex items-center mt-2">
                             <div className="animate-pulse text-muted-foreground/40 select-none">███████████████</div>
                           </div>
                         ) : (
@@ -948,7 +947,7 @@ export default function SystembrukerForm() {
                             id="fnr"
                             value={getCurrentFnr()}
                             readOnly
-                            className="bg-muted cursor-not-allowed mt-2 h-12"
+                            className="bg-muted cursor-not-allowed mt-2 h-14 rounded-lg"
                           />
                         )}
                       </div>
@@ -959,7 +958,7 @@ export default function SystembrukerForm() {
             )}
 
             <div>
-              <Label htmlFor="integrationTitle" className="font-medium">
+              <Label htmlFor="integrationTitle" className="font-semibold text-foreground mb-2 block">
                 Navn på Systembruker (valgfritt)
               </Label>
               <Input
@@ -967,16 +966,16 @@ export default function SystembrukerForm() {
                 value={integrationTitle}
                 onChange={(e) => setIntegrationTitle(e.target.value)}
                 placeholder="Skriv inn navn på systembruker"
-                className="mt-2 h-12"
+                className="mt-2 h-14 rounded-lg border-border focus:border-primary"
               />
-              <p className="text-sm text-muted-foreground mt-2 leading-relaxed">
+              <p className="text-sm text-muted-foreground mt-3 leading-relaxed">
                 Dette navnet vil bli brukt til å identifisere systembrukeren
               </p>
             </div>
 
             {/* Access Packages */}
             <div>
-              <Label className="text-base font-semibold mb-3 block">Tilgangspakker</Label>
+              <Label className="text-lg font-semibold mb-4 block text-foreground">Tilgangspakker</Label>
               <div className="relative mt-2" ref={accessPackageDropdownRef}>
                 <Input
                   placeholder="Søk etter tilgangspakker..."
@@ -984,14 +983,14 @@ export default function SystembrukerForm() {
                   onChange={(e) => setAccessPackageSearch(e.target.value)}
                   onClick={() => setShowAccessPackageDropdown(true)}
                   onFocus={() => setShowAccessPackageDropdown(true)}
-                  className="h-12"
+                  className="h-14 rounded-lg border-border focus:border-primary"
                 />
                 {showAccessPackageDropdown && (
-                  <div className="absolute z-50 w-full mt-2 bg-white border rounded-lg shadow-lg max-h-64 overflow-y-auto">
+                  <div className="absolute z-50 w-full mt-2 bg-card border border-border rounded-xl shadow-lg max-h-64 overflow-y-auto">
                     {filteredAccessPackages.map((pkg) => (
                       <button
                         key={pkg.urn}
-                        className="w-full px-4 py-3 text-left hover:bg-gray-50 text-sm transition-colors first:rounded-t-lg last:rounded-b-lg"
+                        className="w-full px-6 py-4 text-left hover:bg-muted text-sm transition-colors"
                         onMouseDown={(e) => {
                           e.preventDefault()
                           if (!selectedAccessPackages.find((p) => p.urn === pkg.urn)) {
@@ -1007,18 +1006,21 @@ export default function SystembrukerForm() {
                   </div>
                 )}
               </div>
-              <div className="flex flex-wrap gap-2 mt-3">
+              <div className="flex flex-wrap gap-2 mt-4">
                 {selectedAccessPackages.map((pkg) => (
-                  <Badge key={pkg.urn} variant="secondary" className="flex items-center gap-2 px-3 py-1.5 text-sm">
+                  <Badge
+                    key={pkg.urn}
+                    className="flex items-center gap-2 px-4 py-2 text-sm bg-primary/10 text-primary border-primary/20 hover:bg-primary/20 transition-colors rounded-full"
+                  >
                     {pkg.displayName}
                     <button
-                      className="chip-remove-button ml-1 hover:bg-red-100 rounded-full p-1 transition-colors"
+                      className="chip-remove-button ml-1 hover:bg-destructive/20 rounded-full p-1 transition-colors"
                       aria-label={`Fjern ${pkg.displayName} fra valgte tilgangspakker`}
                       onClick={() => {
                         setSelectedAccessPackages((prev) => prev.filter((p) => p.urn !== pkg.urn))
                       }}
                     >
-                      <X className="h-3 w-3 hover:text-red-600" />
+                      <X className="h-3 w-3 hover:text-destructive" />
                     </button>
                   </Badge>
                 ))}
@@ -1028,7 +1030,7 @@ export default function SystembrukerForm() {
             {/* Individual Rights (only for Standard) */}
             {systembrukerType === "standard" && (
               <div>
-                <Label className="text-base font-semibold mb-3 block">Enkeltrettigheter</Label>
+                <Label className="text-lg font-semibold mb-4 block text-foreground">Enkeltrettigheter</Label>
                 <div className="relative mt-2" ref={individualRightDropdownRef}>
                   <Input
                     placeholder="Søk etter enkeltrettigheter..."
@@ -1036,14 +1038,14 @@ export default function SystembrukerForm() {
                     onChange={(e) => setIndividualRightSearch(e.target.value)}
                     onClick={() => setShowIndividualRightDropdown(true)}
                     onFocus={() => setShowIndividualRightDropdown(true)}
-                    className="h-12"
+                    className="h-14 rounded-lg border-border focus:border-primary"
                   />
                   {showIndividualRightDropdown && (
-                    <div className="absolute z-50 w-full mt-2 bg-white border rounded-lg shadow-lg max-h-64 overflow-y-auto">
+                    <div className="absolute z-50 w-full mt-2 bg-card border border-border rounded-xl shadow-lg max-h-64 overflow-y-auto">
                       {filteredIndividualRights.map((right) => (
                         <button
                           key={right.name}
-                          className="w-full px-4 py-3 text-left hover:bg-gray-50 text-sm transition-colors first:rounded-t-lg last:rounded-b-lg"
+                          className="w-full px-6 py-4 text-left hover:bg-muted text-sm transition-colors"
                           onMouseDown={(e) => {
                             e.preventDefault()
                             if (!selectedIndividualRights.find((r) => r.name === right.name)) {
@@ -1059,18 +1061,21 @@ export default function SystembrukerForm() {
                     </div>
                   )}
                 </div>
-                <div className="flex flex-wrap gap-2 mt-3">
+                <div className="flex flex-wrap gap-2 mt-4">
                   {selectedIndividualRights.map((right) => (
-                    <Badge key={right.name} variant="secondary" className="flex items-center gap-2 px-3 py-1.5 text-sm">
+                    <Badge
+                      key={right.name}
+                      className="flex items-center gap-2 px-4 py-2 text-sm bg-primary/10 text-primary border-primary/20 hover:bg-primary/20 transition-colors rounded-full"
+                    >
                       {right.displayName}
                       <button
-                        className="chip-remove-button ml-1 hover:bg-red-100 rounded-full p-1 transition-colors"
+                        className="chip-remove-button ml-1 hover:bg-destructive/20 rounded-full p-1 transition-colors"
                         aria-label={`Fjern ${right.displayName} fra valgte individuelle rettigheter`}
                         onClick={() => {
                           setSelectedIndividualRights((prev) => prev.filter((r) => r.name !== right.name))
                         }}
                       >
-                        <X className="h-3 w-3 hover:text-red-600" />
+                        <X className="h-3 w-3 hover:text-destructive" />
                       </button>
                     </Badge>
                   ))}
@@ -1078,64 +1083,77 @@ export default function SystembrukerForm() {
               </div>
             )}
 
-            {/* Create Button */}
             <Button
               onClick={handleCreateSystembruker}
               disabled={isCreating}
-              className="w-full h-14 text-lg font-semibold"
+              className="w-full h-16 text-lg font-bold rounded-xl shadow-md hover:shadow-lg transition-all hover:scale-[1.02] bg-primary hover:brightness-105"
             >
-              {isCreating ? "Oppretter..." : "Opprett Systembruker"}
+              {isCreating ? "Oppretter..." : "Opprett Systembruker-forespørsel"}
             </Button>
           </CardContent>
         </Card>
 
-        <Card className="shadow-md">
-          <CardHeader>
-            <CardTitle className="flex items-center justify-between text-xl">
-              Forhåndsvisning av request
+        <Card className="shadow-lg rounded-2xl border-border animate-fade-in-up">
+          <CardHeader className="pb-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs text-muted-foreground uppercase tracking-wide mb-1">Forhåndsvisning</p>
+                <CardTitle className="text-xl font-semibold text-foreground">Forhåndsvisning av request</CardTitle>
+              </div>
               <Button
                 variant="outline"
                 size="sm"
                 onClick={() => navigator.clipboard.writeText(JSON.stringify(generateJsonPayload(), null, 2))}
+                className="rounded-lg hover:bg-muted transition-colors"
               >
                 <Copy className="h-4 w-4 mr-2" />
                 Kopier
               </Button>
-            </CardTitle>
+            </div>
           </CardHeader>
-          <CardContent className="pt-4">
-            <pre className="bg-gray-900 text-gray-100 p-4 rounded-lg text-sm overflow-x-auto font-mono">
-              {JSON.stringify(generateJsonPayload(), null, 2)}
-            </pre>
+          <CardContent className="pt-2">
+            <div className="relative bg-code-bg rounded-xl p-6 overflow-hidden">
+              <pre className="text-code-foreground text-sm overflow-x-auto font-mono leading-relaxed">
+                {JSON.stringify(generateJsonPayload(), null, 2)}
+              </pre>
+            </div>
           </CardContent>
         </Card>
 
         {creationHistory.length > 0 && (
-          <Card className="shadow-md">
+          <Card className="shadow-lg rounded-2xl border-border animate-fade-in-up">
             <CardHeader>
-              <CardTitle className="text-xl">Siste opprettede forespørsler</CardTitle>
+              <CardTitle className="text-xl font-semibold text-foreground">Siste opprettede forespørsler</CardTitle>
             </CardHeader>
             <CardContent className="pt-4">
-              <div className="space-y-3">
+              <div className="space-y-4">
                 {creationHistory.map((item, index) => (
-                  <div key={index} className="p-4 bg-gray-50 rounded-lg text-sm border space-y-2">
+                  <div
+                    key={index}
+                    className="p-6 bg-card rounded-xl text-sm border-l-4 border-primary shadow-sm space-y-3 hover:shadow-md transition-shadow"
+                  >
                     {item.integrationTitle && (
-                      <div className="font-semibold text-base text-blue-600">{item.integrationTitle}</div>
+                      <div className="font-bold text-lg text-primary">{item.integrationTitle}</div>
                     )}
-                    <div className="font-semibold text-base">{item.orgName || `Org: ${item.partyOrgNo}`}</div>
-                    <div className="text-muted-foreground">
+                    <div className="font-semibold text-base text-foreground">
+                      {item.orgName || `Org: ${item.partyOrgNo}`}
+                    </div>
+                    <div className="text-muted-foreground leading-relaxed">
                       Org: {item.partyOrgNo}
                       {item.dagligLederFnr && <> | Daglig leder: {item.dagligLederFnr}</>}
                       {item.environment && <> | Miljø: {item.environment}</>}
                     </div>
                     {item.accessPackages && item.accessPackages.length > 0 && (
-                      <div className="mt-2">
-                        <span className="font-medium text-gray-700">Tilgangspakker:</span>
-                        <div className="flex flex-wrap gap-1 mt-1">
+                      <div className="mt-3">
+                        <span className="font-semibold text-foreground">Tilgangspakker:</span>
+                        <div className="flex flex-wrap gap-2 mt-2">
                           {item.accessPackages.map((pkg: any, pkgIndex: number) => {
                             const matchedPkg = accessPackages.find((ap) => ap.urn === pkg.urn)
                             return (
-                              <Badge key={pkgIndex} variant="secondary" className="text-xs">
+                              <Badge
+                                key={pkgIndex}
+                                className="text-xs bg-primary/10 text-primary border-primary/20 rounded-full px-3 py-1"
+                              >
                                 {matchedPkg?.displayName || pkg.urn}
                               </Badge>
                             )
@@ -1144,14 +1162,17 @@ export default function SystembrukerForm() {
                       </div>
                     )}
                     {item.rights && item.rights.length > 0 && (
-                      <div className="mt-2">
-                        <span className="font-medium text-gray-700">Enkeltrettigheter:</span>
-                        <div className="flex flex-wrap gap-1 mt-1">
+                      <div className="mt-3">
+                        <span className="font-semibold text-foreground">Enkeltrettigheter:</span>
+                        <div className="flex flex-wrap gap-2 mt-2">
                           {item.rights.map((right: any, rightIndex: number) => {
                             const resourceValue = right.resource?.[0]?.value
                             const matchedRight = individualRights.find((ir) => ir.name === resourceValue)
                             return (
-                              <Badge key={rightIndex} variant="secondary" className="text-xs">
+                              <Badge
+                                key={rightIndex}
+                                className="text-xs bg-primary/10 text-primary border-primary/20 rounded-full px-3 py-1"
+                              >
                                 {matchedRight?.displayName || resourceValue}
                               </Badge>
                             )
@@ -1166,19 +1187,20 @@ export default function SystembrukerForm() {
           </Card>
         )}
 
-        {/* Error Modal */}
         {showErrorModal && error && (
-          <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
-            <Card className="max-w-4xl w-full max-h-[90vh] overflow-y-auto">
-              <CardHeader className="bg-red-50 border-b">
-                <CardTitle className="text-red-600 flex items-center gap-2 text-xl">
+          <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-50 backdrop-blur-sm">
+            <Card className="max-w-4xl w-full max-h-[90vh] overflow-y-auto shadow-2xl rounded-2xl animate-fade-in-up">
+              <CardHeader className="bg-destructive/10 border-b border-destructive/20">
+                <CardTitle className="text-destructive flex items-center gap-3 text-xl font-semibold">
                   <X className="h-6 w-6" />
                   {error.title}
                 </CardTitle>
               </CardHeader>
-              <CardContent className="space-y-4 pt-6">
-                <div className="p-4 bg-gray-900 text-gray-100 rounded-lg shadow-inner">
-                  <pre className="text-xs font-mono whitespace-pre-wrap overflow-x-auto">{error.message}</pre>
+              <CardContent className="space-y-6 pt-6">
+                <div className="p-6 bg-code-bg text-code-foreground rounded-xl shadow-inner">
+                  <pre className="text-xs font-mono whitespace-pre-wrap overflow-x-auto leading-relaxed">
+                    {error.message}
+                  </pre>
                 </div>
 
                 <div className="flex gap-3 pt-4">
@@ -1188,14 +1210,14 @@ export default function SystembrukerForm() {
                       setShowErrorModal(false)
                       setError(null)
                     }}
-                    className="flex-1 h-12"
+                    className="flex-1 h-14 rounded-xl font-semibold"
                   >
                     Lukk
                   </Button>
                   <Button
                     variant="outline"
                     onClick={() => navigator.clipboard.writeText(error.message)}
-                    className="flex-1 h-12"
+                    className="flex-1 h-14 rounded-xl font-semibold"
                   >
                     <Copy className="h-4 w-4 mr-2" />
                     Kopier feilmelding
@@ -1207,32 +1229,29 @@ export default function SystembrukerForm() {
         )}
 
         {showResultModal && creationResult && (
-          <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
-            <Card className="max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-              <CardHeader>
-                <CardTitle className="text-blue-900 flex items-center gap-2 text-xl">Systembruker opprettet</CardTitle>
+          <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-50 backdrop-blur-sm">
+            <Card className="max-w-2xl w-full max-h-[90vh] overflow-y-auto shadow-2xl rounded-2xl animate-fade-in-up">
+              <CardHeader className="bg-primary/10 border-b border-primary/20">
+                <CardTitle className="text-primary flex items-center gap-3 text-xl font-semibold">
+                  Systembruker opprettet
+                </CardTitle>
               </CardHeader>
-              <CardContent className="space-y-4 pt-6">
-                <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
-                  <h3 className="font-semibold text-blue-900 mb-3 text-lg">Slik logger du inn for å godkjenne:</h3>
-                  <ol className="list-decimal list-inside space-y-2 text-sm text-blue-800 leading-relaxed">
+              <CardContent className="space-y-6 pt-6">
+                <div className="p-6 bg-primary/5 rounded-xl border border-primary/20">
+                  <h3 className="font-bold text-foreground mb-4 text-lg">Slik logger du inn for å godkjenne:</h3>
+                  <ol className="list-decimal list-inside space-y-3 text-sm text-foreground leading-relaxed">
                     <li>Klikk på lenken nedenfor</li>
                     <li>
                       Logg inn med fødselsnummer:{" "}
-                      <strong className="font-mono bg-white px-2 py-1 rounded">
+                      <strong className="font-mono bg-card px-3 py-1.5 rounded-lg border border-border">
                         {getCurrentFnr() || "Se testdata"}
                       </strong>
                     </li>
                     <li>
                       {(() => {
-                        console.log("[v0] Success dialog - selectedOrganization:", selectedOrganization)
-                        console.log("[v0] Success dialog - systembrukerType:", systembrukerType)
-
                         const orgName = selectedOrganization?.navn || getCurrentOrgName() || "organisasjon"
                         const orgNumber =
                           selectedOrganization?.organisasjonsnummer || getCurrentOrgNr() || "organisasjonsnummer"
-
-                        console.log("[v0] Success dialog - using orgName:", orgName, "orgNumber:", orgNumber)
 
                         if (systembrukerType === "agent") {
                           return `Logg inn og velg aktør ${orgName} med orgnummer ${orgNumber} for å delegere klienter til Systembruker`
@@ -1244,7 +1263,7 @@ export default function SystembrukerForm() {
                                 href={getBrukerflatenUrl()}
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                className="text-blue-600 underline hover:text-blue-800 font-medium"
+                                className="text-primary underline hover:text-primary/80 font-semibold transition-colors"
                               >
                                 brukerflaten
                               </a>
@@ -1257,20 +1276,24 @@ export default function SystembrukerForm() {
                 </div>
 
                 <div>
-                  <Label className="font-medium">Godkjenningslenke:</Label>
-                  <div className="flex gap-2 mt-2">
-                    <Input value={creationResult.confirmUrl} readOnly className="font-mono text-xs h-12" />
+                  <Label className="font-semibold text-foreground mb-2 block">Godkjenningslenke:</Label>
+                  <div className="flex gap-3 mt-2">
+                    <Input
+                      value={creationResult.confirmUrl}
+                      readOnly
+                      className="font-mono text-xs h-14 rounded-lg bg-muted"
+                    />
                     <Button
                       size="sm"
                       onClick={() => navigator.clipboard.writeText(creationResult.confirmUrl)}
-                      className="h-12"
+                      className="h-14 px-6 rounded-lg"
                     >
                       <Copy className="h-4 w-4" />
                     </Button>
                   </div>
                   {creationResult.externalRef && (
-                    <div className="mt-2 text-sm text-muted-foreground bg-gray-50 p-3 rounded-lg">
-                      <span className="font-medium">External Reference:</span>{" "}
+                    <div className="mt-3 text-sm text-muted-foreground bg-muted/50 p-4 rounded-xl border border-border">
+                      <span className="font-semibold">External Reference:</span>{" "}
                       <span className="font-mono">{creationResult.externalRef}</span>
                     </div>
                   )}
@@ -1279,11 +1302,15 @@ export default function SystembrukerForm() {
                 <div className="flex gap-3 pt-4">
                   <Button
                     onClick={() => window.open(creationResult.confirmUrl, "_blank")}
-                    className="flex-1 h-12 font-semibold"
+                    className="flex-1 h-16 font-bold rounded-xl shadow-md hover:shadow-lg transition-all hover:scale-[1.02] bg-primary hover:brightness-105"
                   >
                     Åpne godkjenningslenke
                   </Button>
-                  <Button variant="outline" onClick={() => setShowResultModal(false)} className="flex-1 h-12">
+                  <Button
+                    variant="outline"
+                    onClick={() => setShowResultModal(false)}
+                    className="flex-1 h-16 rounded-xl font-semibold"
+                  >
                     Lukk
                   </Button>
                 </div>

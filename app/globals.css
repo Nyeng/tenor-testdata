@@ -4,76 +4,74 @@
 @custom-variant dark (&:is(.dark *));
 
 :root {
-  /* Enhanced color palette with more interesting tones while maintaining readability */
+  /* Updated color palette to match design spec with green accent #2F855A */
   --background: #fafbfc;
-  --foreground: #1a202c;
+  --foreground: #374151;
   --card: #ffffff;
-  --card-foreground: #1a202c;
+  --card-foreground: #374151;
   --popover: #ffffff;
-  --popover-foreground: #1a202c;
-  --primary: #059669;
+  --popover-foreground: #374151;
+  --primary: #2f855a;
   --primary-foreground: #ffffff;
-  --secondary: #3b82f6;
+  --secondary: #6b7280;
   --secondary-foreground: #ffffff;
-  --muted: #f1f5f9;
-  --muted-foreground: #64748b;
-  --accent: #3b82f6;
+  --muted: #f3f4f6;
+  --muted-foreground: #6b7280;
+  --accent: #2f855a;
   --accent-foreground: #ffffff;
   --destructive: #dc2626;
   --destructive-foreground: #ffffff;
-  --border: #cbd5e1;
+  --border: #e6e9ee;
   --input: #ffffff;
-  --ring: rgba(5, 150, 105, 0.3);
-  --chart-1: #059669;
-  --chart-2: #3b82f6;
+  --ring: rgba(47, 133, 90, 0.16);
+  --code-bg: #0f1724;
+  --code-foreground: #f5f5dc;
+  --chart-1: #2f855a;
+  --chart-2: #6b7280;
   --chart-3: #10b981;
-  --chart-4: #60a5fa;
+  --chart-4: #9ca3af;
   --chart-5: #34d399;
   --radius: 0.75rem;
   --sidebar: #f8fafc;
-  --sidebar-foreground: #1a202c;
-  --sidebar-primary: #059669;
+  --sidebar-foreground: #374151;
+  --sidebar-primary: #2f855a;
   --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: #3b82f6;
+  --sidebar-accent: #6b7280;
   --sidebar-accent-foreground: #ffffff;
-  --sidebar-border: #cbd5e1;
-  --sidebar-ring: rgba(5, 150, 105, 0.3);
+  --sidebar-border: #e6e9ee;
+  --sidebar-ring: rgba(47, 133, 90, 0.16);
 }
 
 .dark {
-  /* Enhanced dark mode colors with richer tones */
   --background: #0f172a;
   --foreground: #f1f5f9;
   --card: #1e293b;
   --card-foreground: #f1f5f9;
   --popover: #1e293b;
   --popover-foreground: #f1f5f9;
-  --primary: #10b981;
+  --primary: #34d399;
   --primary-foreground: #ffffff;
-  --secondary: #60a5fa;
+  --secondary: #94a3b8;
   --secondary-foreground: #ffffff;
   --muted: #334155;
   --muted-foreground: #94a3b8;
-  --accent: #60a5fa;
+  --accent: #34d399;
   --accent-foreground: #ffffff;
   --destructive: #ef4444;
   --destructive-foreground: #f1f5f9;
   --border: #475569;
   --input: #334155;
-  --ring: rgba(16, 185, 129, 0.3);
-  --chart-1: #10b981;
-  --chart-2: #60a5fa;
-  --chart-3: #34d399;
-  --chart-4: #93c5fd;
-  --chart-5: #6ee7b7;
+  --ring: rgba(52, 211, 153, 0.16);
+  --code-bg: #0a0f1a;
+  --code-foreground: #f5f5dc;
   --sidebar: #1e293b;
   --sidebar-foreground: #f1f5f9;
-  --sidebar-primary: #10b981;
+  --sidebar-primary: #34d399;
   --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: #60a5fa;
+  --sidebar-accent: #94a3b8;
   --sidebar-accent-foreground: #ffffff;
   --sidebar-border: #475569;
-  --sidebar-ring: rgba(16, 185, 129, 0.3);
+  --sidebar-ring: rgba(52, 211, 153, 0.16);
 }
 
 @theme inline {
@@ -96,16 +94,18 @@
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
+  --color-code-bg: var(--code-bg);
+  --color-code-foreground: var(--code-foreground);
   --color-chart-1: var(--chart-1);
   --color-chart-2: var(--chart-2);
   --color-chart-3: var(--chart-3);
   --color-chart-4: var(--chart-4);
   --color-chart-5: var(--chart-5);
-  /* Updated radius to 12px as specified */
+  /* Updated radius values for more rounded corners */
   --radius-sm: 8px;
-  --radius-md: 10px;
-  --radius-lg: 12px;
-  --radius-xl: 16px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-xl: 20px;
   --color-sidebar: var(--sidebar);
   --color-sidebar-foreground: var(--sidebar-foreground);
   --color-sidebar-primary: var(--sidebar-primary);
@@ -115,7 +115,6 @@
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
 
-  /* Updated font configuration to properly reference Inter from Next.js font loader */
   --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol",
     "Noto Color Emoji";
   --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
@@ -129,9 +128,9 @@
     @apply bg-background text-foreground font-sans;
   }
 
-  /* Added typography scale as specified */
+  /* Updated typography scale with better line heights */
   h1 {
-    @apply text-4xl font-semibold leading-tight;
+    @apply text-4xl font-bold leading-tight;
   }
 
   h2 {
@@ -139,19 +138,18 @@
   }
 
   h3 {
-    @apply text-xl font-medium leading-normal;
+    @apply text-xl font-semibold leading-normal;
   }
 
   p,
   .body {
-    @apply text-base font-normal leading-normal;
+    @apply text-base font-normal leading-relaxed;
   }
 
   .small {
-    @apply text-sm font-normal leading-normal;
+    @apply text-sm font-normal leading-relaxed;
   }
 
-  /* Fixed utility class spacing and separated focus states */
   button,
   input[type="button"],
   input[type="submit"] {
@@ -163,7 +161,38 @@
   select {
     @apply min-h-[44px];
     @apply focus:ring-2;
-    @apply focus:ring-primary/30;
+    @apply focus:ring-primary/20;
     @apply focus:border-primary;
   }
+}
+
+/* Added subtle animations for micro-interactions */
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: -1000px 0;
+  }
+  100% {
+    background-position: 1000px 0;
+  }
+}
+
+.animate-fade-in-up {
+  animation: fadeInUp 0.3s ease-out;
+}
+
+.animate-shimmer {
+  animation: shimmer 2s infinite linear;
+  background: linear-gradient(to right, transparent 0%, rgba(255, 255, 255, 0.3) 50%, transparent 100%);
+  background-size: 1000px 100%;
 }

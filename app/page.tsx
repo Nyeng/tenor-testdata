@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
-import { Building2, Settings, Calculator, User, ChevronDown, ChevronRight, Copy, X, AlertCircle } from "lucide-react"
+import { Building2, Settings, Calculator, User, ChevronDown, Copy, X, AlertCircle } from "lucide-react"
 
 type SystembrukerType = "agent" | "standard"
 type Role = "forretningsfoerer" | "revisor" | "regnskapsfoerere" | "dagligLeder" | "manual"
@@ -56,6 +56,17 @@ interface CreationResult {
   status: string
   systemId: string
   externalRef?: string
+  accessPackages?: Array<{ urn: string }>
+  rights?: Array<{
+    resource: Array<{
+      value: string
+      id: string
+    }>
+  }>
+  integrationTitle?: string
+  orgName?: string
+  dagligLederFnr?: string
+  environment?: string
 }
 
 const accessPackages: AccessPackage[] = [
@@ -278,8 +289,27 @@ export default function SystembrukerForm() {
   // Environment and creation state
   const [selectedEnvironment, setSelectedEnvironment] = useState("TT02")
   const [isCreating, setIsCreating] = useState(false)
-  const [creationHistory, setCreationHistory] = useState<any[]>([])
+  const [creationHistory, setCreationHistory] = useState<CreationResult[]>([])
   const [showResultModal, setShowResultModal] = useState(false)
+
+  useEffect(() => {
+    const savedHistory = localStorage.getItem("systembruker-history")
+    if (savedHistory) {
+      try {
+        const parsed = JSON.parse(savedHistory)
+        setCreationHistory(parsed)
+      } catch (error) {
+        console.error("[v0] Failed to parse saved history:", error)
+      }
+    }
+  }, [])
+
+  useEffect(() => {
+    if (creationHistory.length > 0) {
+      localStorage.setItem("systembruker-history", JSON.stringify(creationHistory))
+    }
+  }, [creationHistory])
+
   const [creationResult, setCreationResult] = useState<CreationResult | null>(null)
   const [selectedOrganization, setSelectedOrganization] = useState<{
     navn: string
@@ -504,7 +534,6 @@ export default function SystembrukerForm() {
       partyOrgNo: getCurrentOrgNr(),
       ...(integrationTitle && { integrationTitle: integrationTitle }),
       accessPackages: selectedAccessPackages.map((pkg) => ({ urn: pkg.urn })),
-      status: "New",
       redirectUrl: "",
     }
 
@@ -638,7 +667,16 @@ export default function SystembrukerForm() {
       }
 
       const result = await response.json()
-      const resultWithRef = { ...result, externalRef: payload.externalRef }
+      const resultWithRef = {
+        ...result,
+        externalRef: payload.externalRef,
+        accessPackages: payload.accessPackages,
+        rights: payload.rights,
+        integrationTitle: integrationTitle || undefined,
+        orgName: getCurrentOrgName(),
+        dagligLederFnr: getCurrentFnr(),
+        environment: selectedEnvironment,
+      }
       setCreationResult(resultWithRef)
       setShowResultModal(true)
       setCreationHistory((prev) => [resultWithRef, ...prev.slice(0, 2)])
@@ -662,19 +700,22 @@ export default function SystembrukerForm() {
   )
 
   return (
-    <div className="min-h-screen bg-gray-50 p-4">
-      <div className="max-w-4xl mx-auto space-y-6">
-        <div className="flex justify-between items-center">
+    <div className="min-h-screen bg-gray-50 p-4 md:p-8">
+      <div className="max-w-5xl mx-auto space-y-8">
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 pb-4">
           <div>
-            <h1 className="text-3xl font-bold text-gray-900">Systembruker demoverktøy</h1>
+            <h1 className="text-4xl font-bold text-gray-900">Tilgangsinfo demoverktøy</h1>
+            <p className="text-muted-foreground mt-2">Opprett og administrer systembrukere enkelt</p>
           </div>
-          <div className="flex items-center gap-2">
-            <Label htmlFor="environment">Miljø:</Label>
+          <div className="flex items-center gap-3 bg-white px-4 py-2 rounded-lg shadow-sm border">
+            <Label htmlFor="environment" className="font-medium">
+              Miljø:
+            </Label>
             <select
               id="environment"
               value={selectedEnvironment}
               onChange={(e) => setSelectedEnvironment(e.target.value)}
-              className="px-3 py-1 border rounded-md"
+              className="px-4 py-2 border rounded-lg bg-white hover:border-primary transition-colors focus:ring-2 focus:ring-primary/30"
             >
               <option value="TT02">TT02</option>
               <option value="AT22">AT22</option>
@@ -684,19 +725,19 @@ export default function SystembrukerForm() {
           </div>
         </div>
 
-        <Card className="border-2 border-blue-200">
+        <Card className="shadow-md">
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">Opprett Systembruker</CardTitle>
+            <CardTitle className="flex items-center gap-2 text-2xl">Opprett Systembruker-forespørsel</CardTitle>
           </CardHeader>
-          <CardContent className="space-y-6">
+          <CardContent className="space-y-6 pt-6">
             {/* Systembruker Type Selection */}
             <div>
-              <Label className="text-base font-medium">Type</Label>
-              <div className="flex gap-2 mt-2">
+              <Label className="text-base font-semibold mb-3 block">Type</Label>
+              <div className="flex gap-3 mt-2">
                 <Button
                   variant={systembrukerType === "agent" ? "default" : "outline"}
                   onClick={() => setSystembrukerType("agent")}
-                  className="flex-1"
+                  className="flex-1 h-12 text-base font-medium"
                 >
                   Agent
                 </Button>
@@ -706,12 +747,12 @@ export default function SystembrukerForm() {
                     setSystembrukerType("standard")
                     setSelectedAccessPackages([])
                   }}
-                  className="flex-1"
+                  className="flex-1 h-12 text-base font-medium"
                 >
                   Egen
                 </Button>
               </div>
-              <p className="text-sm text-gray-600">
+              <p className="text-sm text-muted-foreground mt-3 leading-relaxed">
                 {systembrukerType === "agent"
                   ? "Lar deg opprette Systembruker med tilgangspakker for klientforhold"
                   : "Standard systembruker med enkeltrettigheter og tilgangspakker"}
@@ -720,14 +761,14 @@ export default function SystembrukerForm() {
 
             {/* Role Selection */}
             <div>
-              <Label className="text-base font-medium">Rolle</Label>
-              <p className="text-sm text-gray-600 mt-1 mb-3">
+              <Label className="text-base font-semibold mb-3 block">Rolle</Label>
+              <p className="text-sm text-muted-foreground mt-1 mb-3 leading-relaxed">
                 Henter testorganisasjon fra{" "}
                 <a
                   href="https://www.digdir.no/felleslosninger/tenor-testdatasok/1284"
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-blue-600 hover:text-blue-800 underline"
+                  className="text-blue-600 hover:text-blue-800 underline font-medium"
                 >
                   Tenor Testdatasøk
                 </a>
@@ -739,38 +780,38 @@ export default function SystembrukerForm() {
                 <Button
                   variant="outline"
                   onClick={() => setShowRoleDropdown(!showRoleDropdown)}
-                  className="w-full justify-between h-12"
+                  className="w-full justify-between h-14 text-base"
                 >
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-3">
                     {(() => {
                       const config = roleConfig[selectedRole]
                       const Icon = config.icon
                       return (
                         <>
-                          <Icon className="h-4 w-4" />
-                          {config.name}
+                          <Icon className="h-5 w-5" />
+                          <span className="font-medium">{config.name}</span>
                         </>
                       )
                     })()}
                   </div>
-                  <ChevronDown className="h-4 w-4" />
+                  <ChevronDown className="h-5 w-5" />
                 </Button>
                 {showRoleDropdown && (
-                  <div className="absolute z-50 w-full mt-1 bg-white border rounded-md shadow-lg">
+                  <div className="absolute z-50 w-full mt-2 bg-white border rounded-lg shadow-lg">
                     {Object.entries(roleConfig).map(([key, config]) => {
                       const Icon = config.icon
                       return (
                         <button
                           key={key}
-                          className="w-full px-3 py-3 text-left hover:bg-gray-100 flex items-center gap-2"
+                          className="w-full px-4 py-3 text-left hover:bg-gray-50 flex items-center gap-3 transition-colors first:rounded-t-lg last:rounded-b-lg"
                           onMouseDown={(e) => {
                             e.preventDefault()
                             setSelectedRole(key as Role)
                             setShowRoleDropdown(false)
                           }}
                         >
-                          <Icon className="h-4 w-4" />
-                          {config.name}
+                          <Icon className="h-5 w-5" />
+                          <span className="font-medium">{config.name}</span>
                         </button>
                       )
                     })}
@@ -781,11 +822,13 @@ export default function SystembrukerForm() {
 
             {/* Manual Input Fields */}
             {selectedRole === "manual" && (
-              <div className="grid grid-cols-1 gap-4">
+              <div className="grid grid-cols-1 gap-4 p-4 bg-gray-50 rounded-lg border">
                 <div>
-                  <Label htmlFor="orgNr">Organisasjonsnummer</Label>
+                  <Label htmlFor="orgNr" className="font-medium">
+                    Organisasjonsnummer
+                  </Label>
                   {isLoadingOrgData ? (
-                    <div className="h-10 border border-input rounded-md px-3 py-2 bg-background flex items-center">
+                    <div className="h-12 border border-input rounded-lg px-3 py-2 bg-background flex items-center mt-2">
                       <div className="animate-pulse text-muted-foreground/40 select-none">████████████</div>
                     </div>
                   ) : (
@@ -794,14 +837,17 @@ export default function SystembrukerForm() {
                       value={manualOrgNr}
                       onChange={(e) => setManualOrgNr(e.target.value)}
                       placeholder="9 siffer"
+                      className="mt-2 h-12"
                     />
                   )}
                 </div>
                 {(manualOrgName || isLoadingManualDagligLeder) && (
                   <div>
-                    <Label htmlFor="manualOrgName">Organisasjonsnavn</Label>
+                    <Label htmlFor="manualOrgName" className="font-medium">
+                      Organisasjonsnavn
+                    </Label>
                     {isLoadingManualDagligLeder ? (
-                      <div className="h-10 border border-input rounded-md px-3 py-2 bg-background flex items-center">
+                      <div className="h-12 border border-input rounded-lg px-3 py-2 bg-background flex items-center mt-2">
                         <div className="animate-pulse text-muted-foreground/40 select-none">
                           ████████████████████████
                         </div>
@@ -811,16 +857,18 @@ export default function SystembrukerForm() {
                         id="manualOrgName"
                         value={manualOrgName}
                         readOnly
-                        className="bg-muted cursor-not-allowed"
+                        className="bg-muted cursor-not-allowed mt-2 h-12"
                       />
                     )}
                   </div>
                 )}
                 {(manualDagligLederFnr || isLoadingManualDagligLeder) && (
                   <div>
-                    <Label htmlFor="manualDagligLederFnr">Fødselsnummer (daglig leder)</Label>
+                    <Label htmlFor="manualDagligLederFnr" className="font-medium">
+                      Fødselsnummer (daglig leder)
+                    </Label>
                     {isLoadingManualDagligLeder ? (
-                      <div className="h-10 border border-input rounded-md px-3 py-2 bg-background flex items-center">
+                      <div className="h-12 border border-input rounded-lg px-3 py-2 bg-background flex items-center mt-2">
                         <div className="animate-pulse text-muted-foreground/40 select-none">███████████████</div>
                       </div>
                     ) : (
@@ -828,13 +876,13 @@ export default function SystembrukerForm() {
                         id="manualDagligLederFnr"
                         value={manualDagligLederFnr}
                         readOnly
-                        className="bg-muted cursor-not-allowed"
+                        className="bg-muted cursor-not-allowed mt-2 h-12"
                       />
                     )}
                   </div>
                 )}
                 {dagligLederError && !isLoadingManualDagligLeder && (
-                  <div className="flex items-start gap-2 p-3 bg-amber-50 border border-amber-200 rounded-md">
+                  <div className="flex items-start gap-2 p-3 bg-amber-50 border border-amber-200 rounded-lg">
                     <AlertCircle className="h-4 w-4 text-amber-600 mt-0.5 flex-shrink-0" />
                     <p className="text-sm text-amber-800">{dagligLederError}</p>
                   </div>
@@ -844,11 +892,13 @@ export default function SystembrukerForm() {
 
             {/* Auto-filled values display with non-editable org number */}
             {selectedRole !== "manual" && (
-              <div className="space-y-4">
+              <div className="space-y-4 p-4 bg-gray-50 rounded-lg border">
                 <div>
-                  <Label htmlFor="editableOrgNr">Organisasjonsnummer</Label>
+                  <Label htmlFor="editableOrgNr" className="font-medium">
+                    Organisasjonsnummer
+                  </Label>
                   {isLoadingOrgData ? (
-                    <div className="h-10 border border-input rounded-md px-3 py-2 bg-background flex items-center">
+                    <div className="h-12 border border-input rounded-lg px-3 py-2 bg-background flex items-center mt-2">
                       <div className="animate-pulse text-muted-foreground/40 select-none">████████████</div>
                     </div>
                   ) : (
@@ -856,7 +906,7 @@ export default function SystembrukerForm() {
                       id="editableOrgNr"
                       value={editableOrgNr || testData[selectedRole]?.[0]?.organisasjonsnummer || ""}
                       readOnly
-                      className="bg-muted cursor-not-allowed"
+                      className="bg-muted cursor-not-allowed mt-2 h-12"
                       placeholder="9 siffer"
                     />
                   )}
@@ -865,9 +915,11 @@ export default function SystembrukerForm() {
                   <>
                     {(getCurrentOrgName() || isLoadingOrgData) && (
                       <div>
-                        <Label htmlFor="orgName">Organisasjonsnavn</Label>
+                        <Label htmlFor="orgName" className="font-medium">
+                          Organisasjonsnavn
+                        </Label>
                         {isLoadingOrgData ? (
-                          <div className="h-10 border border-input rounded-md px-3 py-2 bg-background flex items-center">
+                          <div className="h-12 border border-input rounded-lg px-3 py-2 bg-background flex items-center mt-2">
                             <div className="animate-pulse text-muted-foreground/40 select-none">
                               ████████████████████████
                             </div>
@@ -877,20 +929,27 @@ export default function SystembrukerForm() {
                             id="orgName"
                             value={getCurrentOrgName()}
                             readOnly
-                            className="bg-muted cursor-not-allowed"
+                            className="bg-muted cursor-not-allowed mt-2 h-12"
                           />
                         )}
                       </div>
                     )}
                     {(getCurrentFnr() || isLoadingOrgData) && (
                       <div>
-                        <Label htmlFor="fnr">Fødselsnummer (daglig leder)</Label>
+                        <Label htmlFor="fnr" className="font-medium">
+                          Fødselsnummer (daglig leder)
+                        </Label>
                         {isLoadingOrgData ? (
-                          <div className="h-10 border border-input rounded-md px-3 py-2 bg-background flex items-center">
+                          <div className="h-12 border border-input rounded-lg px-3 py-2 bg-background flex items-center mt-2">
                             <div className="animate-pulse text-muted-foreground/40 select-none">███████████████</div>
                           </div>
                         ) : (
-                          <Input id="fnr" value={getCurrentFnr()} readOnly className="bg-muted cursor-not-allowed" />
+                          <Input
+                            id="fnr"
+                            value={getCurrentFnr()}
+                            readOnly
+                            className="bg-muted cursor-not-allowed mt-2 h-12"
+                          />
                         )}
                       </div>
                     )}
@@ -900,19 +959,24 @@ export default function SystembrukerForm() {
             )}
 
             <div>
-              <Label htmlFor="integrationTitle">Navn på Systembruker (valgfritt)</Label>
+              <Label htmlFor="integrationTitle" className="font-medium">
+                Navn på Systembruker (valgfritt)
+              </Label>
               <Input
                 id="integrationTitle"
                 value={integrationTitle}
                 onChange={(e) => setIntegrationTitle(e.target.value)}
                 placeholder="Skriv inn navn på systembruker"
+                className="mt-2 h-12"
               />
-              <p className="text-sm text-gray-600 mt-1">Dette navnet vil bli brukt til å identifisere systembrukeren</p>
+              <p className="text-sm text-muted-foreground mt-2 leading-relaxed">
+                Dette navnet vil bli brukt til å identifisere systembrukeren
+              </p>
             </div>
 
             {/* Access Packages */}
             <div>
-              <Label className="text-base font-medium">Tilgangspakker</Label>
+              <Label className="text-base font-semibold mb-3 block">Tilgangspakker</Label>
               <div className="relative mt-2" ref={accessPackageDropdownRef}>
                 <Input
                   placeholder="Søk etter tilgangspakker..."
@@ -920,13 +984,14 @@ export default function SystembrukerForm() {
                   onChange={(e) => setAccessPackageSearch(e.target.value)}
                   onClick={() => setShowAccessPackageDropdown(true)}
                   onFocus={() => setShowAccessPackageDropdown(true)}
+                  className="h-12"
                 />
                 {showAccessPackageDropdown && (
-                  <div className="absolute z-50 w-full mt-1 bg-white border rounded-md shadow-lg max-h-48 overflow-y-auto">
+                  <div className="absolute z-50 w-full mt-2 bg-white border rounded-lg shadow-lg max-h-64 overflow-y-auto">
                     {filteredAccessPackages.map((pkg) => (
                       <button
                         key={pkg.urn}
-                        className="w-full px-3 py-2 text-left hover:bg-gray-100 text-sm"
+                        className="w-full px-4 py-3 text-left hover:bg-gray-50 text-sm transition-colors first:rounded-t-lg last:rounded-b-lg"
                         onMouseDown={(e) => {
                           e.preventDefault()
                           if (!selectedAccessPackages.find((p) => p.urn === pkg.urn)) {
@@ -942,12 +1007,12 @@ export default function SystembrukerForm() {
                   </div>
                 )}
               </div>
-              <div className="flex flex-wrap gap-2 mt-2">
+              <div className="flex flex-wrap gap-2 mt-3">
                 {selectedAccessPackages.map((pkg) => (
-                  <Badge key={pkg.urn} variant="secondary" className="flex items-center gap-1">
+                  <Badge key={pkg.urn} variant="secondary" className="flex items-center gap-2 px-3 py-1.5 text-sm">
                     {pkg.displayName}
                     <button
-                      className="chip-remove-button ml-1 hover:bg-red-100 rounded-full p-0.5"
+                      className="chip-remove-button ml-1 hover:bg-red-100 rounded-full p-1 transition-colors"
                       aria-label={`Fjern ${pkg.displayName} fra valgte tilgangspakker`}
                       onClick={() => {
                         setSelectedAccessPackages((prev) => prev.filter((p) => p.urn !== pkg.urn))
@@ -963,7 +1028,7 @@ export default function SystembrukerForm() {
             {/* Individual Rights (only for Standard) */}
             {systembrukerType === "standard" && (
               <div>
-                <Label className="text-base font-medium">Enkeltrettigheter</Label>
+                <Label className="text-base font-semibold mb-3 block">Enkeltrettigheter</Label>
                 <div className="relative mt-2" ref={individualRightDropdownRef}>
                   <Input
                     placeholder="Søk etter enkeltrettigheter..."
@@ -971,13 +1036,14 @@ export default function SystembrukerForm() {
                     onChange={(e) => setIndividualRightSearch(e.target.value)}
                     onClick={() => setShowIndividualRightDropdown(true)}
                     onFocus={() => setShowIndividualRightDropdown(true)}
+                    className="h-12"
                   />
                   {showIndividualRightDropdown && (
-                    <div className="absolute z-50 w-full mt-1 bg-white border rounded-md shadow-lg max-h-48 overflow-y-auto">
+                    <div className="absolute z-50 w-full mt-2 bg-white border rounded-lg shadow-lg max-h-64 overflow-y-auto">
                       {filteredIndividualRights.map((right) => (
                         <button
                           key={right.name}
-                          className="w-full px-3 py-2 text-left hover:bg-gray-100 text-sm"
+                          className="w-full px-4 py-3 text-left hover:bg-gray-50 text-sm transition-colors first:rounded-t-lg last:rounded-b-lg"
                           onMouseDown={(e) => {
                             e.preventDefault()
                             if (!selectedIndividualRights.find((r) => r.name === right.name)) {
@@ -993,12 +1059,12 @@ export default function SystembrukerForm() {
                     </div>
                   )}
                 </div>
-                <div className="flex flex-wrap gap-2 mt-2">
+                <div className="flex flex-wrap gap-2 mt-3">
                   {selectedIndividualRights.map((right) => (
-                    <Badge key={right.name} variant="secondary" className="flex items-center gap-1">
+                    <Badge key={right.name} variant="secondary" className="flex items-center gap-2 px-3 py-1.5 text-sm">
                       {right.displayName}
                       <button
-                        className="chip-remove-button ml-1 hover:bg-red-100 rounded-full p-0.5"
+                        className="chip-remove-button ml-1 hover:bg-red-100 rounded-full p-1 transition-colors"
                         aria-label={`Fjern ${right.displayName} fra valgte individuelle rettigheter`}
                         onClick={() => {
                           setSelectedIndividualRights((prev) => prev.filter((r) => r.name !== right.name))
@@ -1013,107 +1079,86 @@ export default function SystembrukerForm() {
             )}
 
             {/* Create Button */}
-            <Button onClick={handleCreateSystembruker} disabled={isCreating} className="w-full h-12 text-lg">
+            <Button
+              onClick={handleCreateSystembruker}
+              disabled={isCreating}
+              className="w-full h-14 text-lg font-semibold"
+            >
               {isCreating ? "Oppretter..." : "Opprett Systembruker"}
             </Button>
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="shadow-md">
           <CardHeader>
-            <CardTitle className="flex items-center justify-between">
-              JSON Payload Preview
+            <CardTitle className="flex items-center justify-between text-xl">
+              Forhåndsvisning av request
               <Button
                 variant="outline"
                 size="sm"
                 onClick={() => navigator.clipboard.writeText(JSON.stringify(generateJsonPayload(), null, 2))}
               >
-                <Copy className="h-4 w-4 mr-1" />
+                <Copy className="h-4 w-4 mr-2" />
                 Kopier
               </Button>
             </CardTitle>
           </CardHeader>
-          <CardContent>
-            <pre className="bg-gray-50 text-gray-800 p-4 rounded-md text-sm overflow-x-auto font-mono border">
+          <CardContent className="pt-4">
+            <pre className="bg-gray-900 text-gray-100 p-4 rounded-lg text-sm overflow-x-auto font-mono">
               {JSON.stringify(generateJsonPayload(), null, 2)}
             </pre>
           </CardContent>
         </Card>
 
-        <div className="space-y-4">
-          <h2 className="text-xl font-semibold">Testdata Utforskning</h2>
-
-          {["forretningsfoerer", "revisor", "regnskapsfoerere"].map((role) => (
-            <Card key={role}>
-              <CardHeader
-                className="cursor-pointer"
-                onClick={() =>
-                  setExpandedPanels((prev) => ({
-                    ...prev,
-                    [role]: !prev[role],
-                  }))
-                }
-              >
-                <CardTitle className="flex items-center justify-between">
-                  <span className="flex items-center gap-2">
-                    {expandedPanels[role] ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-                    {roleConfig[role as keyof typeof roleConfig].name} testdata
-                  </span>
-                  <Badge variant="outline">{testData[role]?.length || 0} entries</Badge>
-                </CardTitle>
-              </CardHeader>
-              {expandedPanels[role] && (
-                <CardContent>
-                  <div className="space-y-2">
-                    {testData[role]?.map((entry, index) => (
-                      <div key={index} className="flex items-center justify-between p-3 bg-gray-50 rounded-md">
-                        <div className="text-sm">
-                          <div className="font-medium">{entry.organisasjonsnavn}</div>
-                          <div className="text-gray-600">
-                            Org: {entry.organisasjonsnummer} | FNR: {entry.foedselsnummer}
-                          </div>
-                        </div>
-                        <Button
-                          size="sm"
-                          onClick={() => {
-                            setSelectedRole(role as Role)
-                            setManualOrgNr(entry.organisasjonsnummer)
-                            setManualFnr(entry.foedselsnummer)
-                            setSelectedOrganization({
-                              navn: entry.organisasjonsnavn,
-                              organisasjonsnummer: entry.organisasjonsnummer,
-                            })
-                          }}
-                        >
-                          Bruk denne
-                        </Button>
-                      </div>
-                    ))}
-                  </div>
-                </CardContent>
-              )}
-            </Card>
-          ))}
-        </div>
-
         {creationHistory.length > 0 && (
-          <Card>
+          <Card className="shadow-md">
             <CardHeader>
-              <CardTitle>Siste opprettede systembrukere</CardTitle>
+              <CardTitle className="text-xl">Siste opprettede forespørsler</CardTitle>
             </CardHeader>
-            <CardContent>
-              <div className="space-y-2">
+            <CardContent className="pt-4">
+              <div className="space-y-3">
                 {creationHistory.map((item, index) => (
-                  <div key={index} className="p-3 bg-gray-50 rounded-md text-sm">
-                    <div className="font-medium">
-                      {testData[selectedRole]?.[0]?.organisasjonsnavn || `Org: ${item.partyOrgNo}`}
+                  <div key={index} className="p-4 bg-gray-50 rounded-lg text-sm border space-y-2">
+                    {item.integrationTitle && (
+                      <div className="font-semibold text-base text-blue-600">{item.integrationTitle}</div>
+                    )}
+                    <div className="font-semibold text-base">{item.orgName || `Org: ${item.partyOrgNo}`}</div>
+                    <div className="text-muted-foreground">
+                      Org: {item.partyOrgNo}
+                      {item.dagligLederFnr && <> | Daglig leder: {item.dagligLederFnr}</>}
+                      {item.environment && <> | Miljø: {item.environment}</>}
                     </div>
-                    <div className="text-gray-600">
-                      Org: {item.partyOrgNo} | Status: {item.status}
-                      {testData[selectedRole]?.[0]?.foedselsnummer && (
-                        <> | Daglig leder: {testData[selectedRole][0].foedselsnummer}</>
-                      )}
-                    </div>
+                    {item.accessPackages && item.accessPackages.length > 0 && (
+                      <div className="mt-2">
+                        <span className="font-medium text-gray-700">Tilgangspakker:</span>
+                        <div className="flex flex-wrap gap-1 mt-1">
+                          {item.accessPackages.map((pkg: any, pkgIndex: number) => {
+                            const matchedPkg = accessPackages.find((ap) => ap.urn === pkg.urn)
+                            return (
+                              <Badge key={pkgIndex} variant="secondary" className="text-xs">
+                                {matchedPkg?.displayName || pkg.urn}
+                              </Badge>
+                            )
+                          })}
+                        </div>
+                      </div>
+                    )}
+                    {item.rights && item.rights.length > 0 && (
+                      <div className="mt-2">
+                        <span className="font-medium text-gray-700">Enkeltrettigheter:</span>
+                        <div className="flex flex-wrap gap-1 mt-1">
+                          {item.rights.map((right: any, rightIndex: number) => {
+                            const resourceValue = right.resource?.[0]?.value
+                            const matchedRight = individualRights.find((ir) => ir.name === resourceValue)
+                            return (
+                              <Badge key={rightIndex} variant="secondary" className="text-xs">
+                                {matchedRight?.displayName || resourceValue}
+                              </Badge>
+                            )
+                          })}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>
@@ -1123,36 +1168,36 @@ export default function SystembrukerForm() {
 
         {/* Error Modal */}
         {showErrorModal && error && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
             <Card className="max-w-4xl w-full max-h-[90vh] overflow-y-auto">
-              <CardHeader>
-                <CardTitle className="text-red-600 flex items-center gap-2">
-                  <X className="h-5 w-5" />
+              <CardHeader className="bg-red-50 border-b">
+                <CardTitle className="text-red-600 flex items-center gap-2 text-xl">
+                  <X className="h-6 w-6" />
                   {error.title}
                 </CardTitle>
               </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="p-4 bg-gray-900 text-green-400 rounded-lg">
+              <CardContent className="space-y-4 pt-6">
+                <div className="p-4 bg-gray-900 text-gray-100 rounded-lg shadow-inner">
                   <pre className="text-xs font-mono whitespace-pre-wrap overflow-x-auto">{error.message}</pre>
                 </div>
 
-                <div className="flex gap-2 pt-4">
+                <div className="flex gap-3 pt-4">
                   <Button
                     variant="outline"
                     onClick={() => {
                       setShowErrorModal(false)
                       setError(null)
                     }}
-                    className="flex-1"
+                    className="flex-1 h-12"
                   >
                     Lukk
                   </Button>
                   <Button
                     variant="outline"
                     onClick={() => navigator.clipboard.writeText(error.message)}
-                    className="flex-1"
+                    className="flex-1 h-12"
                   >
-                    <Copy className="h-4 w-4 mr-1" />
+                    <Copy className="h-4 w-4 mr-2" />
                     Kopier feilmelding
                   </Button>
                 </div>
@@ -1162,19 +1207,21 @@ export default function SystembrukerForm() {
         )}
 
         {showResultModal && creationResult && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
             <Card className="max-w-2xl w-full max-h-[90vh] overflow-y-auto">
               <CardHeader>
-                <CardTitle className="text-blue-900 flex items-center gap-2">Systembruker opprettet</CardTitle>
+                <CardTitle className="text-blue-900 flex items-center gap-2 text-xl">Systembruker opprettet</CardTitle>
               </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="p-4 bg-blue-50 rounded-lg">
-                  <h3 className="font-semibold text-blue-900 mb-2">Slik logger du inn for å godkjenne:</h3>
-                  <ol className="list-decimal list-inside space-y-1 text-sm text-blue-800">
+              <CardContent className="space-y-4 pt-6">
+                <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
+                  <h3 className="font-semibold text-blue-900 mb-3 text-lg">Slik logger du inn for å godkjenne:</h3>
+                  <ol className="list-decimal list-inside space-y-2 text-sm text-blue-800 leading-relaxed">
                     <li>Klikk på lenken nedenfor</li>
                     <li>
                       Logg inn med fødselsnummer:{" "}
-                      <strong className="font-mono">{getCurrentFnr() || "Se testdata"}</strong>
+                      <strong className="font-mono bg-white px-2 py-1 rounded">
+                        {getCurrentFnr() || "Se testdata"}
+                      </strong>
                     </li>
                     <li>
                       {(() => {
@@ -1197,7 +1244,7 @@ export default function SystembrukerForm() {
                                 href={getBrukerflatenUrl()}
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                className="text-blue-600 underline hover:text-blue-800"
+                                className="text-blue-600 underline hover:text-blue-800 font-medium"
                               >
                                 brukerflaten
                               </a>
@@ -1210,26 +1257,33 @@ export default function SystembrukerForm() {
                 </div>
 
                 <div>
-                  <Label>Godkjenningslenke:</Label>
-                  <div className="flex gap-2 mt-1">
-                    <Input value={creationResult.confirmUrl} readOnly className="font-mono text-xs" />
-                    <Button size="sm" onClick={() => navigator.clipboard.writeText(creationResult.confirmUrl)}>
+                  <Label className="font-medium">Godkjenningslenke:</Label>
+                  <div className="flex gap-2 mt-2">
+                    <Input value={creationResult.confirmUrl} readOnly className="font-mono text-xs h-12" />
+                    <Button
+                      size="sm"
+                      onClick={() => navigator.clipboard.writeText(creationResult.confirmUrl)}
+                      className="h-12"
+                    >
                       <Copy className="h-4 w-4" />
                     </Button>
                   </div>
                   {creationResult.externalRef && (
-                    <div className="mt-1 text-sm text-gray-600">
+                    <div className="mt-2 text-sm text-muted-foreground bg-gray-50 p-3 rounded-lg">
                       <span className="font-medium">External Reference:</span>{" "}
                       <span className="font-mono">{creationResult.externalRef}</span>
                     </div>
                   )}
                 </div>
 
-                <div className="flex gap-2 pt-4">
-                  <Button onClick={() => window.open(creationResult.confirmUrl, "_blank")} className="flex-1">
+                <div className="flex gap-3 pt-4">
+                  <Button
+                    onClick={() => window.open(creationResult.confirmUrl, "_blank")}
+                    className="flex-1 h-12 font-semibold"
+                  >
                     Åpne godkjenningslenke
                   </Button>
-                  <Button variant="outline" onClick={() => setShowResultModal(false)} className="flex-1">
+                  <Button variant="outline" onClick={() => setShowResultModal(false)} className="flex-1 h-12">
                     Lukk
                   </Button>
                 </div>

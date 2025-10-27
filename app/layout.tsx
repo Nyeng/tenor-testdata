@@ -6,7 +6,6 @@ import "./globals.css"
 const inter = Inter({
   subsets: ["latin"],
   display: "swap",
-  variable: "--font-inter",
 })
 
 export const metadata: Metadata = {
@@ -21,16 +20,7 @@ export default function RootLayout({
   children: React.ReactNode
 }>) {
   return (
-    <html lang="no" className={inter.variable}>
-      <head>
-        <style>{`
-html {
-  font-family: ${inter.style.fontFamily};
-  --font-sans: ${inter.style.fontFamily};
-  --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
-}
-        `}</style>
-      </head>
+    <html lang="no" className={inter.className}>
       <body className="font-sans antialiased">{children}</body>
     </html>
   )

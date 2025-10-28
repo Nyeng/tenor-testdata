@@ -779,7 +779,7 @@ export default function SystembrukerForm() {
                 <Button
                   variant="outline"
                   onClick={() => setShowRoleDropdown(!showRoleDropdown)}
-                  className="w-full justify-between h-16 text-base rounded-xl border-border hover:border-primary transition-all"
+                  className="w-full justify-between h-16 text-base rounded-xl border-border hover:border-primary hover:bg-transparent transition-all"
                 >
                   <div className="flex items-center gap-3">
                     {(() => {
@@ -802,15 +802,15 @@ export default function SystembrukerForm() {
                       return (
                         <button
                           key={key}
-                          className="w-full px-6 py-4 text-left hover:bg-accent/50 flex items-center gap-3 transition-colors"
+                          className="w-full px-6 py-4 text-left flex items-center gap-3 transition-colors group border-l-4 border-transparent hover:border-primary hover:bg-transparent"
                           onMouseDown={(e) => {
                             e.preventDefault()
                             setSelectedRole(key as Role)
                             setShowRoleDropdown(false)
                           }}
                         >
-                          <Icon className="h-5 w-5 text-primary" />
-                          <span className="font-semibold text-foreground">{config.name}</span>
+                          <Icon className="h-5 w-5 text-primary transition-colors" />
+                          <span className="font-semibold text-foreground transition-colors">{config.name}</span>
                         </button>
                       )
                     })}
@@ -1143,6 +1143,11 @@ export default function SystembrukerForm() {
                       {item.dagligLederFnr && <> | Daglig leder: {item.dagligLederFnr}</>}
                       {item.environment && <> | Miljø: {item.environment}</>}
                     </div>
+                    {item.externalRef && (
+                      <div className="text-muted-foreground leading-relaxed font-mono text-xs">
+                        ExternalRef: {item.externalRef}
+                      </div>
+                    )}
                     {item.accessPackages && item.accessPackages.length > 0 && (
                       <div className="mt-3">
                         <span className="font-semibold text-foreground">Tilgangspakker:</span>
@@ -1233,7 +1238,7 @@ export default function SystembrukerForm() {
             <Card className="max-w-2xl w-full max-h-[90vh] overflow-y-auto shadow-2xl rounded-2xl animate-fade-in-up">
               <CardHeader className="bg-primary/10 border-b border-primary/20">
                 <CardTitle className="text-primary flex items-center gap-3 text-xl font-semibold">
-                  Systembruker opprettet
+                  Forespørsel opprettet
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-6 pt-6">
@@ -1273,30 +1278,6 @@ export default function SystembrukerForm() {
                       })()}
                     </li>
                   </ol>
-                </div>
-
-                <div>
-                  <Label className="font-semibold text-foreground mb-2 block">Godkjenningslenke:</Label>
-                  <div className="flex gap-3 mt-2">
-                    <Input
-                      value={creationResult.confirmUrl}
-                      readOnly
-                      className="font-mono text-xs h-14 rounded-lg bg-muted"
-                    />
-                    <Button
-                      size="sm"
-                      onClick={() => navigator.clipboard.writeText(creationResult.confirmUrl)}
-                      className="h-14 px-6 rounded-lg"
-                    >
-                      <Copy className="h-4 w-4" />
-                    </Button>
-                  </div>
-                  {creationResult.externalRef && (
-                    <div className="mt-3 text-sm text-muted-foreground bg-muted/50 p-4 rounded-xl border border-border">
-                      <span className="font-semibold">External Reference:</span>{" "}
-                      <span className="font-mono">{creationResult.externalRef}</span>
-                    </div>
-                  )}
                 </div>
 
                 <div className="flex gap-3 pt-4">

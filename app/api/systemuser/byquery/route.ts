@@ -14,9 +14,11 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    console.log("[v0] Generating token for byquery - orgNo:", orgNo, "env:", environment)
+    const vendorOrg = systemId.split("_")[0]
+    console.log("[v0] Generating token for byquery - vendorOrg:", vendorOrg, "env:", environment)
 
-    const tokenUrl = `https://altinn-testtools-token-generator.azurewebsites.net/api/GetEnterpriseToken?env=${environment}&scopes=altinn:authentication/systemuser.request.write&ttl=60000&orgNo=312605031`
+    const tokenUrl = `https://altinn-testtools-token-generator.azurewebsites.net/api/GetEnterpriseToken?env=${environment}&scopes=altinn:authentication/systemuser.request.write&ttl=60000&orgNo=${vendorOrg}`
+    // </CHANGE>
 
     const tokenResponse = await fetch(tokenUrl, {
       method: "GET",
@@ -37,7 +39,6 @@ export async function POST(request: NextRequest) {
 
     const token = await tokenResponse.text()
     console.log("[v0] Token generated successfully for byquery")
-    // </CHANGE>
 
     const apiBase =
       environment === "tt02" ? "https://platform.tt02.altinn.no" : `https://platform.${environment}.altinn.cloud`

@@ -6,7 +6,19 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
-import { Building2, Settings, Calculator, User, ChevronDown, Copy, X, AlertCircle } from "lucide-react"
+import {
+  Building2,
+  Settings,
+  Calculator,
+  User,
+  ChevronDown,
+  Copy,
+  X,
+  AlertCircle,
+  Sparkles,
+  XCircle,
+} from "lucide-react"
+import systemVendorsData from "@/data/system-vendors.json"
 
 type SystembrukerType = "agent" | "standard"
 type Role = "forretningsfoerer" | "revisor" | "regnskapsfoerere" | "dagligLeder" | "manual"
@@ -54,7 +66,7 @@ interface CreationResult {
   confirmUrl?: string
   partyOrgNo: string
   status: string
-  systemId: string
+  systemId: string // Added systemId to CreationResult
   externalRef?: string
   accessPackages?: Array<{ urn: string }>
   rights?: Array<{
@@ -69,6 +81,18 @@ interface CreationResult {
   environment?: string
   userType?: string
   systemUserId?: string
+}
+
+interface CustomSystem {
+  id: string
+  vendorId: string
+  name: { en: string; nb: string; nn: string }
+  description: { en: string; nb: string; nn: string }
+  rights: IndividualRight[]
+  accessPackages: AccessPackage[]
+  clientId: string[]
+  allowedRedirectUrls: string[]
+  integrationTitle?: string
 }
 
 const accessPackages: AccessPackage[] = [
@@ -333,6 +357,8 @@ export default function SystembrukerForm() {
     environment?: string
   } | null>(null)
   const [showErrorModal, setShowErrorModal] = useState(false)
+  // Define setErrorMessage
+  const [errorMessage, setErrorMessage] = useState<string | null>(null)
 
   const accessPackageDropdownRef = useRef<HTMLDivElement>(null)
   const individualRightDropdownRef = useRef<HTMLDivElement>(null)
@@ -361,6 +387,35 @@ export default function SystembrukerForm() {
 
   const changeRequestAccessPackageDropdownRef = useRef<HTMLDivElement>(null)
   const changeRequestIndividualRightDropdownRef = useRef<HTMLDivElement>(null)
+
+  const [useCustomSystem, setUseCustomSystem] = useState(false)
+  const [customSystem, setCustomSystem] = useState<CustomSystem | null>(null)
+  const [isCreatingSystem, setIsCreatingSystem] = useState(false)
+  const [prefilledIntegrationTitle, setPrefilledIntegrationTitle] = useState("")
+
+  // Custom system form state
+  const [countryCode, setCountryCode] = useState("0192")
+  const [vendorOrgNo, setVendorOrgNo] = useState("")
+  const [systemIdName, setSystemIdName] = useState("")
+  const [systemNameEn, setSystemNameEn] = useState("")
+  const [systemNameNb, setSystemNameNb] = useState("")
+  const [systemNameNn, setSystemNameNn] = useState("")
+  const [systemDescEn, setSystemDescEn] = useState("")
+  const [systemDescNb, setSystemDescNb] = useState("")
+  const [systemDescNn, setSystemDescNn] = useState("")
+  const [systemClientId, setSystemClientId] = useState("")
+  const [systemRedirectUrl, setSystemRedirectUrl] = useState("")
+  const [systemRedirectUrls, setSystemRedirectUrls] = useState<string[]>([])
+  const [systemAccessPackages, setSystemAccessPackages] = useState<AccessPackage[]>([])
+  const [systemRights, setSystemRights] = useState<IndividualRight[]>([])
+  const [systemAccessPackageSearch, setSystemAccessPackageSearch] = useState("")
+  const [systemRightSearch, setSystemRightSearch] = useState("")
+  const [showSystemAccessPackageDropdown, setShowSystemAccessPackageDropdown] = useState(false)
+  const [showSystemRightDropdown, setShowSystemRightDropdown] = useState(false)
+  const [systemIsVisible, setSystemIsVisible] = useState(false)
+
+  const systemAccessPackageDropdownRef = useRef<HTMLDivElement>(null)
+  const systemRightDropdownRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     const loadTestData = async () => {
@@ -434,6 +489,61 @@ export default function SystembrukerForm() {
 
     loadTestData()
   }, [])
+
+  const fetchRandomTenorOrg = async () => {
+    try {
+      const response = await fetch("/api/daglig-leder", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ antall: 1 }),
+      })
+
+      if (!response.ok) throw new Error("Failed to fetch Tenor data")
+
+      const data = await response.json()
+      if (data.leaders && data.leaders.length > 0 && data.leaders[0].organisasjonsnummer) {
+        return data.leaders[0].organisasjonsnummer
+      }
+    } catch (error) {
+      console.error("[v0] Error fetching Tenor org:", error)
+    }
+    return null
+  }
+
+  const getRandomVendorData = () => {
+    const randomIndex = Math.floor(Math.random() * systemVendorsData.length)
+    const vendor = systemVendorsData[randomIndex]
+    // Convert "Nordbyte AS" to "NordbyteAS" for systemId
+    const systemIdName = vendor.leverandor.replace(/\s+/g, "").replace(/[^a-zA-Z0-9]/g, "")
+    return {
+      systemIdName,
+      integrationTitle: vendor.integrationTitle,
+      leverandor: vendor.leverandor,
+    }
+  }
+
+  const handlePrefillTestData = async () => {
+    const orgNo = await fetchRandomTenorOrg()
+    const vendorData = getRandomVendorData()
+
+    if (orgNo) {
+      setVendorOrgNo(orgNo)
+    }
+    setSystemIdName(vendorData.systemIdName)
+    setSystemNameNb(vendorData.leverandor)
+    setSystemNameEn(vendorData.leverandor)
+    setSystemNameNn(vendorData.leverandor)
+    setSystemDescNb(`Integrasjon for ${vendorData.leverandor}`)
+    setSystemDescEn(`Integration for ${vendorData.leverandor}`)
+    setSystemDescNn(`Integrasjon for ${vendorData.leverandor}`)
+    setPrefilledIntegrationTitle(vendorData.integrationTitle)
+    setIntegrationTitle(vendorData.integrationTitle)
+  }
+
+  const handlePrefillIntegrationTitle = () => {
+    const vendorData = getRandomVendorData()
+    setIntegrationTitle(vendorData.integrationTitle)
+  }
 
   useEffect(() => {
     const fetchDagligLederForManualOrg = async () => {
@@ -530,6 +640,14 @@ export default function SystembrukerForm() {
       ) {
         setShowChangeRequestIndividualRightDropdown(false)
       }
+
+      if (systemAccessPackageDropdownRef.current && !systemAccessPackageDropdownRef.current.contains(target)) {
+        setShowSystemAccessPackageDropdown(false)
+      }
+
+      if (systemRightDropdownRef.current && !systemRightDropdownRef.current.contains(target)) {
+        setShowSystemRightDropdown(false)
+      }
     }
 
     document.addEventListener("mousedown", handleClickOutside)
@@ -537,6 +655,25 @@ export default function SystembrukerForm() {
       document.removeEventListener("mousedown", handleClickOutside)
     }
   }, [])
+
+  useEffect(() => {
+    const savedSystem = localStorage.getItem("custom-system")
+    if (savedSystem) {
+      try {
+        const parsed = JSON.JSON.parse(savedSystem)
+        setCustomSystem(parsed)
+        setUseCustomSystem(true)
+      } catch (error) {
+        console.error("[v0] Failed to parse saved custom system:", error)
+      }
+    }
+  }, [])
+
+  useEffect(() => {
+    if (customSystem) {
+      localStorage.setItem("custom-system", JSON.stringify(customSystem))
+    }
+  }, [customSystem])
 
   const getCurrentOrgNr = () => {
     if (selectedRole === "manual") return manualOrgNr
@@ -564,6 +701,9 @@ export default function SystembrukerForm() {
 
   const generateJsonPayload = () => {
     const getSystemId = () => {
+      if (useCustomSystem && customSystem) {
+        return customSystem.id
+      }
       return "312605031_Virksomhetsbruker"
     }
 
@@ -644,11 +784,13 @@ export default function SystembrukerForm() {
     )
 
     try {
+      const tokenOrgNo = customSystem ? customSystem.id.split("_")[0] : "312605031"
+
       const tokenResponse = await fetch("/api/token", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          orgNo: "312605031",
+          orgNo: tokenOrgNo,
           env: selectedEnvironment.toLowerCase(),
         }),
       })
@@ -710,6 +852,7 @@ export default function SystembrukerForm() {
       const result = await response.json()
       const resultWithRef = {
         ...result,
+        systemId: payload.systemId, // Ensure systemId is stored
         externalRef: payload.externalRef,
         accessPackages: payload.accessPackages,
         rights: payload.rights,
@@ -732,11 +875,144 @@ export default function SystembrukerForm() {
     }
   }
 
-  const filteredAccessPackages = accessPackages.filter((pkg) =>
+  const handleCreateSystem = async () => {
+    // Simplified validation message
+    if (!vendorOrgNo || !systemIdName || !systemNameNb) {
+      setErrorMessage("Vennligst fyll ut alle obligatoriske felt")
+      setShowErrorModal(true)
+      return
+    }
+
+    setIsCreatingSystem(true)
+    setErrorMessage(null) // Clear previous error
+
+    try {
+      const constructedSystemId = `${vendorOrgNo}_${systemIdName}`
+      const constructedVendorId = `${countryCode}:${vendorOrgNo}`
+
+      const transformedRights = systemRights.map((right) => ({
+        resource: [
+          {
+            id: "urn:altinn:resource",
+            value: right.name,
+          },
+        ],
+      }))
+
+      const transformedAccessPackages = systemAccessPackages.map((pkg) => ({
+        urn: pkg.urn,
+      }))
+
+      const systemData = {
+        id: constructedSystemId,
+        vendor: {
+          ID: constructedVendorId,
+        },
+        name: {
+          en: systemNameEn || systemNameNb,
+          nb: systemNameNb,
+          nn: systemNameNn || systemNameNb,
+        },
+        description: {
+          en: systemDescEn || systemDescNb,
+          nb: systemDescNb,
+          nn: systemDescNn || systemDescNb,
+        },
+        rights: transformedRights,
+        accessPackages: transformedAccessPackages,
+        isDeleted: false,
+        clientId: systemClientId ? [systemClientId] : [],
+        isVisible: systemIsVisible,
+        allowedRedirectUrls: systemRedirectUrls,
+      }
+
+      const response = await fetch("/api/systemregister", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          orgNo: "312605031",
+          requestBody: systemData,
+          environment: selectedEnvironment.toLowerCase(),
+        }),
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || `Failed to create system: ${response.status}`)
+      }
+
+      const result = await response.json()
+      console.log("[v0] System created successfully:", result)
+
+      const createdSystem = {
+        id: constructedSystemId,
+        vendor: {
+          ID: constructedVendorId,
+        },
+        name: systemData.name,
+        description: systemData.description,
+        rights: systemRights,
+        accessPackages: systemAccessPackages,
+        integrationTitle: prefilledIntegrationTitle || systemNameNb,
+      }
+
+      setCustomSystem(createdSystem)
+      localStorage.setItem("custom-system", JSON.stringify(createdSystem))
+
+      // Reset form fields
+      setCountryCode("0192")
+      setVendorOrgNo("")
+      setSystemIdName("")
+      setSystemNameEn("")
+      setSystemNameNb("")
+      setSystemNameNn("")
+      setSystemDescEn("")
+      setSystemDescNb("")
+      setSystemDescNn("")
+      setSystemClientId("")
+      setSystemRedirectUrl("")
+      setSystemRedirectUrls([])
+      setSystemAccessPackages([])
+      setSystemRights([])
+      setPrefilledIntegrationTitle("")
+      setSystemIsVisible(false)
+
+      // Reset selected packages/rights to match custom system if it was already active
+      if (!useCustomSystem) {
+        setSelectedAccessPackages([])
+        setSelectedIndividualRights([])
+      }
+    } catch (error) {
+      console.error("[v0] Error creating system:", error)
+      setError({
+        title: "Kunne ikke opprette system",
+        message: error instanceof Error ? error.message : String(error),
+      })
+      setShowErrorModal(true)
+    } finally {
+      setIsCreatingSystem(false)
+    }
+  }
+
+  const getAvailableAccessPackages = (): AccessPackage[] => {
+    if (useCustomSystem && customSystem) {
+      return customSystem.accessPackages
+    }
+    return accessPackages
+  }
+
+  const getAvailableIndividualRights = (): IndividualRight[] => {
+    if (useCustomSystem && customSystem) {
+      return customSystem.rights
+    }
+    return individualRights
+  }
+
+  const filteredAccessPackages = getAvailableAccessPackages().filter((pkg) =>
     pkg.displayName.toLowerCase().includes(accessPackageSearch.toLowerCase()),
   )
 
-  const filteredIndividualRights = individualRights.filter((right) =>
+  const filteredIndividualRights = getAvailableIndividualRights().filter((right) =>
     right.displayName.toLowerCase().includes(individualRightSearch.toLowerCase()),
   )
 
@@ -748,7 +1024,7 @@ export default function SystembrukerForm() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          systemId: "312605031_Virksomhetsbruker",
+          systemId: item.systemId, // Use the systemId from the item
           orgNo: item.partyOrgNo,
           externalRef: item.externalRef,
           environment: item.environment?.toLowerCase() || "tt02",
@@ -821,12 +1097,15 @@ export default function SystembrukerForm() {
     setIsSubmittingChangeRequest(true)
 
     try {
+      const systemId = changeRequestItem.systemId || "312605031_Virksomhetsbruker"
+      const tokenOrgNo = systemId.split("_")[0]
+
       // Generate token
       const tokenResponse = await fetch("/api/token", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          orgNo: "312605031",
+          orgNo: tokenOrgNo,
           env: changeRequestItem.environment?.toLowerCase() || "tt02",
         }),
       })
@@ -944,36 +1223,383 @@ export default function SystembrukerForm() {
       !requiredRights.find((req) => req.name === right.name),
   )
 
-  return (
-    <div className="min-h-screen bg-background p-4 md:p-8">
-      <div className="max-w-5xl mx-auto space-y-8">
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 pb-6">
-          <div>
-            <h1 className="text-4xl md:text-5xl font-bold text-foreground">Tilgangsinfo demoverktøy</h1>
-            <p className="text-muted-foreground mt-3 text-base leading-relaxed">
-              Opprett og administrer systembrukere enkelt
-            </p>
-          </div>
-          <div className="flex items-center gap-3 bg-card px-6 py-3 rounded-xl shadow-sm border border-border">
-            <Label htmlFor="environment" className="font-semibold text-foreground">
-              Miljø:
-            </Label>
-            <select
-              id="environment"
-              value={selectedEnvironment}
-              onChange={(e) => setSelectedEnvironment(e.target.value)}
-              className="px-4 py-2 border border-border rounded-lg bg-card text-foreground hover:border-primary transition-all focus:ring-2 focus:ring-primary/20 focus:border-primary"
-            >
-              <option value="TT02">TT02</option>
-              <option value="AT22">AT22</option>
-              <option value="AT23">AT23</option>
-              <option value="AT24">AT24</option>
-            </select>
-          </div>
-        </div>
+  const filteredSystemAccessPackages = accessPackages.filter((pkg) =>
+    pkg.displayName.toLowerCase().includes(systemAccessPackageSearch.toLowerCase()),
+  )
 
-        <Card className="shadow-lg rounded-2xl border-border animate-fade-in-up">
-          <CardContent className="space-y-8 pt-8">
+  // Filter out rights that are not in the `individualRights` list
+  const filteredSystemIndividualRights = individualRights.filter((right) =>
+    right.displayName.toLowerCase().includes(systemRightSearch.toLowerCase()),
+  )
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted/20">
+      <div className="container mx-auto px-4 py-8 max-w-5xl">
+        <Card className="shadow-2xl rounded-2xl overflow-hidden border-2 border-primary/10">
+          <CardHeader className="bg-gradient-to-r from-primary/10 via-primary/5 to-background border-b-2 border-primary/20 pb-8">
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+              <div>
+                <h1 className="text-4xl md:text-5xl font-bold text-foreground">Tilgangsinfo demoverktøy</h1>
+                <p className="text-muted-foreground mt-3 text-base leading-relaxed">
+                  Opprett og administrer systembrukere enkelt
+                </p>
+              </div>
+              <div className="flex items-center gap-3 bg-card px-6 py-3 rounded-xl shadow-sm border border-border">
+                <Label htmlFor="environment" className="font-semibold text-foreground">
+                  Miljø:
+                </Label>
+                <select
+                  id="environment"
+                  value={selectedEnvironment}
+                  onChange={(e) => setSelectedEnvironment(e.target.value)}
+                  className="px-4 py-2 border border-border rounded-lg bg-card text-foreground hover:border-primary transition-all focus:ring-2 focus:ring-primary/20 focus:border-primary"
+                >
+                  <option value="TT02">TT02</option>
+                  <option value="AT22">AT22</option>
+                  <option value="AT23">AT23</option>
+                  <option value="AT24">AT24</option>
+                </select>
+              </div>
+            </div>
+          </CardHeader>
+
+          <CardContent className="p-8 space-y-8">
+            <div>
+              <Label className="text-lg font-semibold mb-4 block text-foreground">Systemvalg</Label>
+              <div className="space-y-3">
+                <div className="flex items-center gap-3">
+                  <input
+                    type="radio"
+                    id="useExistingSystem"
+                    name="systemSelection"
+                    checked={!useCustomSystem}
+                    onChange={() => {
+                      setUseCustomSystem(false)
+                      setCustomSystem(null)
+                      localStorage.removeItem("custom-system")
+                      setSelectedAccessPackages([])
+                      setSelectedIndividualRights([])
+                    }}
+                    className="h-4 w-4 text-primary focus:ring-primary cursor-pointer"
+                  />
+                  <Label htmlFor="useExistingSystem" className="font-medium text-foreground cursor-pointer">
+                    Gjenbruk eksisterende system (312605031_Virksomhetsbruker)
+                  </Label>
+                </div>
+                <div className="flex items-center gap-3">
+                  <input
+                    type="radio"
+                    id="useCustomSystem"
+                    name="systemSelection"
+                    checked={useCustomSystem}
+                    onChange={() => setUseCustomSystem(true)}
+                    className="h-4 w-4 text-primary focus:ring-primary cursor-pointer"
+                  />
+                  <Label htmlFor="useCustomSystem" className="font-medium text-foreground cursor-pointer">
+                    Opprett nytt system
+                  </Label>
+                </div>
+              </div>
+            </div>
+
+            {useCustomSystem && !customSystem && (
+              <div className="p-6 bg-primary/5 rounded-xl border-2 border-primary/20 space-y-6">
+                <div className="flex items-center justify-between">
+                  <h3 className="font-bold text-foreground text-lg">Opprett nytt system</h3>
+                  <Button
+                    onClick={handlePrefillTestData}
+                    variant="outline"
+                    size="sm"
+                    className="rounded-lg flex items-center gap-2 bg-transparent"
+                  >
+                    <Sparkles className="h-4 w-4" />
+                    Preutfyll med testdata
+                  </Button>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div>
+                    <Label htmlFor="countryCode" className="font-semibold text-foreground mb-2 block">
+                      Landskode *
+                    </Label>
+                    <Input
+                      id="countryCode"
+                      value={countryCode}
+                      onChange={(e) => setCountryCode(e.target.value)}
+                      placeholder="0192"
+                      className="h-12 rounded-lg border-border focus:border-primary"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="vendorOrgNo" className="font-semibold text-foreground mb-2 block">
+                      Organisasjonsnummer *
+                    </Label>
+                    <Input
+                      id="vendorOrgNo"
+                      value={vendorOrgNo}
+                      onChange={(e) => setVendorOrgNo(e.target.value)}
+                      placeholder="310547891"
+                      className="h-12 rounded-lg border-border focus:border-primary"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="systemIdName" className="font-semibold text-foreground mb-2 block">
+                      System ID navn *
+                    </Label>
+                    <Input
+                      id="systemIdName"
+                      value={systemIdName}
+                      onChange={(e) => setSystemIdName(e.target.value)}
+                      placeholder="SystemMedApp"
+                      className="h-12 rounded-lg border-border focus:border-primary"
+                    />
+                  </div>
+                </div>
+
+                {vendorOrgNo && systemIdName && (
+                  <div className="bg-muted/50 p-4 rounded-lg space-y-2">
+                    <p className="text-sm text-muted-foreground">
+                      <span className="font-semibold">System ID:</span>{" "}
+                      <code className="bg-background px-2 py-1 rounded text-foreground">
+                        {vendorOrgNo}_{systemIdName}
+                      </code>
+                    </p>
+                    <p className="text-sm text-muted-foreground">
+                      <span className="font-semibold">Vendor ID:</span>{" "}
+                      <code className="bg-background px-2 py-1 rounded text-foreground">
+                        {countryCode}:{vendorOrgNo}
+                      </code>
+                    </p>
+                  </div>
+                )}
+
+                <div>
+                  <Label className="font-semibold text-foreground mb-3 block">Navn *</Label>
+                  <div className="space-y-3">
+                    <Input
+                      value={systemNameNb}
+                      onChange={(e) => setSystemNameNb(e.target.value)}
+                      placeholder="Norsk bokmål"
+                      className="h-12 rounded-lg border-border focus:border-primary"
+                    />
+                    <Input
+                      value={systemNameNn}
+                      onChange={(e) => setSystemNameNn(e.target.value)}
+                      placeholder="Nynorsk (valgfritt)"
+                      className="h-12 rounded-lg border-border focus:border-primary"
+                    />
+                    <Input
+                      value={systemNameEn}
+                      onChange={(e) => setSystemNameEn(e.target.value)}
+                      placeholder="English (valgfritt)"
+                      className="h-12 rounded-lg border-border focus:border-primary"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <Label className="font-semibold text-foreground mb-3 block">Beskrivelse *</Label>
+                  <div className="space-y-3">
+                    <Input
+                      value={systemDescNb}
+                      onChange={(e) => setSystemDescNb(e.target.value)}
+                      placeholder="Norsk bokmål"
+                      className="h-12 rounded-lg border-border focus:border-primary"
+                    />
+                    <Input
+                      value={systemDescNn}
+                      onChange={(e) => setSystemDescNn(e.target.value)}
+                      placeholder="Nynorsk (valgfritt)"
+                      className="h-12 rounded-lg border-border focus:border-primary"
+                    />
+                    <Input
+                      value={systemDescEn}
+                      onChange={(e) => setSystemDescEn(e.target.value)}
+                      placeholder="English (valgfritt)"
+                      className="h-12 rounded-lg border-border focus:border-primary"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <Label className="font-semibold text-foreground mb-3 block">Tilgangspakker *</Label>
+                  <div className="relative" ref={systemAccessPackageDropdownRef}>
+                    <Input
+                      placeholder="Søk etter tilgangspakker..."
+                      value={systemAccessPackageSearch}
+                      onChange={(e) => setSystemAccessPackageSearch(e.target.value)}
+                      onClick={() => setShowSystemAccessPackageDropdown(true)}
+                      onFocus={() => setShowSystemAccessPackageDropdown(true)}
+                      className="h-12 rounded-lg border-border focus:border-primary"
+                    />
+                    {showSystemAccessPackageDropdown && (
+                      <div className="absolute z-50 w-full mt-2 bg-card border border-border rounded-xl shadow-lg max-h-64 overflow-y-auto">
+                        {filteredSystemAccessPackages.map((pkg) => (
+                          <button
+                            key={pkg.urn}
+                            className="w-full px-6 py-4 text-left hover:bg-muted text-sm transition-colors"
+                            onMouseDown={(e) => {
+                              e.preventDefault()
+                              if (!systemAccessPackages.find((p) => p.urn === pkg.urn)) {
+                                setSystemAccessPackages((prev) => [...prev, pkg])
+                              }
+                              setSystemAccessPackageSearch("")
+                              setShowSystemAccessPackageDropdown(false)
+                            }}
+                          >
+                            {pkg.displayName}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                  <div className="flex flex-wrap gap-2 mt-3">
+                    {systemAccessPackages.map((pkg) => (
+                      <Badge
+                        key={pkg.urn}
+                        className="flex items-center gap-2 px-3 py-1.5 text-sm bg-primary/10 text-primary border-primary/20 rounded-full"
+                      >
+                        {pkg.displayName}
+                        <button
+                          className="chip-remove-button ml-1 hover:bg-destructive/20 rounded-full p-1 transition-colors"
+                          onClick={() => {
+                            setSystemAccessPackages((prev) => prev.filter((p) => p.urn !== pkg.urn))
+                          }}
+                        >
+                          <XCircle className="h-3 w-3" />
+                        </button>
+                      </Badge>
+                    ))}
+                  </div>
+                </div>
+
+                <div>
+                  <Label className="font-semibold text-foreground mb-3 block">Enkeltrettigheter (valgfritt)</Label>
+                  <div className="relative" ref={systemRightDropdownRef}>
+                    <Input
+                      placeholder="Søk etter enkeltrettigheter..."
+                      value={systemRightSearch}
+                      onChange={(e) => setSystemRightSearch(e.target.value)}
+                      onClick={() => setShowSystemRightDropdown(true)}
+                      onFocus={() => setShowSystemRightDropdown(true)}
+                      className="h-12 rounded-lg border-border focus:border-primary"
+                    />
+                    {showSystemRightDropdown && (
+                      <div className="absolute z-50 w-full mt-2 bg-card border border-border rounded-xl shadow-lg max-h-64 overflow-y-auto">
+                        {filteredSystemIndividualRights.map((right) => (
+                          <button
+                            key={right.name}
+                            className="w-full px-6 py-4 text-left hover:bg-muted text-sm transition-colors"
+                            onMouseDown={(e) => {
+                              e.preventDefault()
+                              if (!systemRights.find((r) => r.name === right.name)) {
+                                setSystemRights((prev) => [...prev, right])
+                              }
+                              setSystemRightSearch("")
+                              setShowSystemRightDropdown(false)
+                            }}
+                          >
+                            {right.displayName}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                  <div className="flex flex-wrap gap-2 mt-3">
+                    {systemRights.map((right) => (
+                      <Badge
+                        key={right.name}
+                        className="flex items-center gap-2 px-3 py-1.5 text-sm bg-primary/10 text-primary border-primary/20 rounded-full"
+                      >
+                        {right.displayName}
+                        <button
+                          className="chip-remove-button ml-1 hover:bg-destructive/20 rounded-full p-1 transition-colors"
+                          onClick={() => {
+                            setSystemRights((prev) => prev.filter((r) => r.name !== right.name))
+                          }}
+                        >
+                          <XCircle className="h-3 w-3" />
+                        </button>
+                      </Badge>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div>
+                    <Label htmlFor="systemClientId" className="font-semibold text-foreground mb-2 block">
+                      Client ID (valgfritt)
+                    </Label>
+                    <Input
+                      id="systemClientId"
+                      value={systemClientId}
+                      onChange={(e) => setSystemClientId(e.target.value)}
+                      placeholder="client-id-123"
+                      className="h-12 rounded-lg border-border focus:border-primary"
+                    />
+                  </div>
+
+                  <div className="flex items-center space-x-3 pt-8">
+                    <input
+                      type="checkbox"
+                      id="systemIsVisible"
+                      checked={systemIsVisible}
+                      onChange={(e) => setSystemIsVisible(e.target.checked)}
+                      className="h-5 w-5 rounded border-border text-primary focus:ring-primary"
+                    />
+                    <Label htmlFor="systemIsVisible" className="font-semibold text-foreground cursor-pointer">
+                      Synlig system (isVisible)
+                    </Label>
+                  </div>
+                </div>
+
+                <Button
+                  onClick={handleCreateSystem}
+                  disabled={isCreatingSystem}
+                  className="w-full h-14 font-bold rounded-xl shadow-md hover:shadow-lg transition-all hover:scale-[1.02] bg-primary hover:brightness-105"
+                >
+                  {isCreatingSystem ? "Oppretter..." : "Opprett system"}
+                </Button>
+              </div>
+            )}
+
+            {useCustomSystem && customSystem && (
+              <div className="p-6 bg-primary/5 rounded-xl border border-primary/20">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="font-bold text-foreground text-lg">Egendefinert system</h3>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      setCustomSystem(null)
+                      localStorage.removeItem("custom-system")
+                      setSelectedAccessPackages([])
+                      setSelectedIndividualRights([])
+                      setUseCustomSystem(false)
+                    }}
+                    className="rounded-lg"
+                  >
+                    Fjern system
+                  </Button>
+                </div>
+                <div className="space-y-2 text-sm">
+                  <div>
+                    <span className="font-semibold">System ID:</span>{" "}
+                    <span className="font-mono text-muted-foreground">{customSystem.id}</span>
+                  </div>
+                  <div>
+                    <span className="font-semibold">Navn:</span> {customSystem.name.nb}
+                  </div>
+                  <div>
+                    <span className="font-semibold">Tilgangspakker:</span> {customSystem.accessPackages.length}
+                  </div>
+                  <div>
+                    <span className="font-semibold">Enkeltrettigheter:</span> {customSystem.rights.length}
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* Systembruker Type Selection */}
             <div>
               <Label className="text-lg font-semibold mb-4 block text-foreground">Type</Label>
@@ -1024,7 +1650,7 @@ export default function SystembrukerForm() {
                 <Button
                   variant="outline"
                   onClick={() => setShowRoleDropdown(!showRoleDropdown)}
-                  className="w-full justify-between h-16 text-base rounded-xl border-border hover:border-primary hover:bg-transparent transition-all"
+                  className="w-full justify-between h-16 rounded-xl border-border hover:border-primary hover:bg-transparent transition-all"
                 >
                   <div className="flex items-center gap-3">
                     {(() => {
@@ -1206,13 +1832,27 @@ export default function SystembrukerForm() {
               <Label htmlFor="integrationTitle" className="font-semibold text-foreground mb-2 block">
                 Navn på Systembruker (valgfritt)
               </Label>
-              <Input
-                id="integrationTitle"
-                value={integrationTitle}
-                onChange={(e) => setIntegrationTitle(e.target.value)}
-                placeholder="Skriv inn navn på systembruker"
-                className="mt-2 h-14 rounded-lg border-border focus:border-primary"
-              />
+              <div className="flex gap-2">
+                <Input
+                  id="integrationTitle"
+                  value={integrationTitle}
+                  onChange={(e) => setIntegrationTitle(e.target.value)}
+                  placeholder="Skriv inn navn på systembruker"
+                  className="mt-2 h-14 rounded-lg border-border focus:border-primary flex-1"
+                />
+                {!useCustomSystem && (
+                  <Button
+                    onClick={handlePrefillIntegrationTitle}
+                    variant="outline"
+                    size="sm"
+                    className="mt-2 rounded-lg flex items-center gap-2 bg-transparent"
+                    type="button"
+                  >
+                    <Sparkles className="h-4 w-4" />
+                    Tilfeldig navn
+                  </Button>
+                )}
+              </div>
               <p className="text-sm text-muted-foreground mt-3 leading-relaxed">
                 Dette navnet vil bli brukt til å identifisere systembrukeren
               </p>
@@ -1221,6 +1861,11 @@ export default function SystembrukerForm() {
             {/* Access Packages */}
             <div>
               <Label className="text-lg font-semibold mb-4 block text-foreground">Tilgangspakker</Label>
+              {useCustomSystem && customSystem && (
+                <p className="text-sm text-muted-foreground mb-3 leading-relaxed">
+                  Kun tilgangspakker definert i det egendefinerte systemet er tilgjengelige
+                </p>
+              )}
               <div className="relative mt-2" ref={accessPackageDropdownRef}>
                 <Input
                   placeholder="Søk etter tilgangspakker..."
@@ -1276,6 +1921,11 @@ export default function SystembrukerForm() {
             {systembrukerType === "standard" && (
               <div>
                 <Label className="text-lg font-semibold mb-4 block text-foreground">Enkeltrettigheter</Label>
+                {useCustomSystem && customSystem && (
+                  <p className="text-sm text-muted-foreground mb-3 leading-relaxed">
+                    Kun enkeltrettigheter definert i det egendefinerte systemet er tilgjengelige
+                  </p>
+                )}
                 <div className="relative mt-2" ref={individualRightDropdownRef}>
                   <Input
                     placeholder="Søk etter enkeltrettigheter..."
@@ -1786,6 +2436,7 @@ export default function SystembrukerForm() {
           </div>
         )}
 
+        {/* CHANGE: Add change request success modal after main success modal */}
         {showChangeRequestSuccess && changeRequestSuccessData && (
           <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-50 backdrop-blur-sm">
             <Card className="max-w-2xl w-full max-h-[90vh] overflow-y-auto shadow-2xl rounded-2xl animate-fade-in-up">
@@ -1804,7 +2455,6 @@ export default function SystembrukerForm() {
                         {changeRequestSuccessData.dagligLederFnr || "Se testdata"}
                       </strong>
                     </li>
-                    <li>Godkjenn endringsforespørselen</li>
                   </ol>
                 </div>
 
@@ -1817,10 +2467,7 @@ export default function SystembrukerForm() {
                   </Button>
                   <Button
                     variant="outline"
-                    onClick={() => {
-                      setShowChangeRequestSuccess(false)
-                      setChangeRequestSuccessData(null)
-                    }}
+                    onClick={() => setShowChangeRequestSuccess(false)}
                     className="flex-1 h-16 rounded-xl font-semibold"
                   >
                     Lukk
@@ -1830,6 +2477,8 @@ export default function SystembrukerForm() {
             </Card>
           </div>
         )}
+
+        {/* ... existing code for other modals ... */}
       </div>
     </div>
   )

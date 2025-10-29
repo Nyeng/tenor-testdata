@@ -1,0 +1,102 @@
+[
+  {
+    "leverandor": "Nordbyte AS",
+    "integrationTitle": "Nordbyte Integrasjon"
+  },
+  {
+    "leverandor": "Fjellkoding AS",
+    "integrationTitle": "Fjellkoding API Gateway"
+  },
+  {
+    "leverandor": "Arctic Cloud Consulting",
+    "integrationTitle": "Arctic Connector"
+  },
+  {
+    "leverandor": "Synkronix Norge",
+    "integrationTitle": "Synkronix SystemUser"
+  },
+  {
+    "leverandor": "Digitalt Verksted AS",
+    "integrationTitle": "Digitalt Sync"
+  },
+  {
+    "leverandor": "Datakilden AS",
+    "integrationTitle": "Datakilden Bridge"
+  },
+  {
+    "leverandor": "Skykomponenter AS",
+    "integrationTitle": "Skykomponenter Access"
+  },
+  {
+    "leverandor": "Kodeverket AS",
+    "integrationTitle": "Kodeverket Integrasjon"
+  },
+  {
+    "leverandor": "HexaNord Consulting",
+    "integrationTitle": "HexaNord API Gateway"
+  },
+  {
+    "leverandor": "Polaris IT Partner",
+    "integrationTitle": "Polaris Connector"
+  },
+  {
+    "leverandor": "Fram Data",
+    "integrationTitle": "Fram SystemUser"
+  },
+  {
+    "leverandor": "Nettnode AS",
+    "integrationTitle": "Nettnode Sync"
+  },
+  {
+    "leverandor": "Tundra Technologies",
+    "integrationTitle": "Tundra Bridge"
+  },
+  {
+    "leverandor": "Virtuo IT",
+    "integrationTitle": "Virtuo Access"
+  },
+  {
+    "leverandor": "Fjordsoft AS",
+    "integrationTitle": "Fjordsoft Integrasjon"
+  },
+  {
+    "leverandor": "Infranord Consulting",
+    "integrationTitle": "Infranord API Gateway"
+  },
+  {
+    "leverandor": "Bitkraft Norge",
+    "integrationTitle": "Bitkraft Connector"
+  },
+  {
+    "leverandor": "LogIQ Solutions",
+    "integrationTitle": "LogIQ SystemUser"
+  },
+  {
+    "leverandor": "Skya Consulting",
+    "integrationTitle": "Skya Sync"
+  },
+  {
+    "leverandor": "Bluewave Digital",
+    "integrationTitle": "Bluewave Bridge"
+  },
+  {
+    "leverandor": "Netthavn AS",
+    "integrationTitle": "Netthavn Access"
+  },
+  {
+    "leverandor": "Konnektiva AS",
+    "integrationTitle": "Konnektiva Integrasjon"
+  },
+  {
+    "leverandor": "Bytebryggeriet AS",
+    "integrationTitle": "Bytebryggeriet API Gateway"
+  },
+  {
+    "leverandor": "Lyra IT Consulting",
+    "integrationTitle": "Lyra Connector"
+  },
+  {
+    "leverandor": "Nodeworks Norge",
+    "integrationTitle": "Nodeworks SystemUser"
+  }
+]

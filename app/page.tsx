@@ -51,7 +51,7 @@ interface DagligLederResponse {
 
 interface CreationResult {
   id: string
-  confirmUrl: string
+  confirmUrl?: string
   partyOrgNo: string
   status: string
   systemId: string
@@ -67,6 +67,8 @@ interface CreationResult {
   orgName?: string
   dagligLederFnr?: string
   environment?: string
+  userType?: string
+  systemUserId?: string
 }
 
 const accessPackages: AccessPackage[] = [
@@ -292,6 +294,12 @@ export default function SystembrukerForm() {
   const [creationHistory, setCreationHistory] = useState<CreationResult[]>([])
   const [showResultModal, setShowResultModal] = useState(false)
 
+  const [showChangeRequestSuccess, setShowChangeRequestSuccess] = useState(false)
+  const [changeRequestSuccessData, setChangeRequestSuccessData] = useState<{
+    confirmUrl: string
+    dagligLederFnr: string
+  } | null>(null)
+
   useEffect(() => {
     const savedHistory = localStorage.getItem("systembruker-history")
     if (savedHistory) {
@@ -335,6 +343,24 @@ export default function SystembrukerForm() {
   const [manualOrgName, setManualOrgName] = useState("")
   const [manualDagligLederFnr, setManualDagligLederFnr] = useState("")
   const [dagligLederError, setDagligLederError] = useState<string | null>(null)
+
+  const [updatingItemIndex, setUpdatingItemIndex] = useState<number | null>(null)
+
+  const [showChangeRequestModal, setShowChangeRequestModal] = useState(false)
+  const [changeRequestItem, setChangeRequestItem] = useState<CreationResult | null>(null)
+  const [changeRequestItemIndex, setChangeRequestItemIndex] = useState<number | null>(null)
+  const [unwantedAccessPackages, setUnwantedAccessPackages] = useState<AccessPackage[]>([])
+  const [requiredAccessPackages, setRequiredAccessPackages] = useState<AccessPackage[]>([])
+  const [unwantedRights, setUnwantedRights] = useState<IndividualRight[]>([])
+  const [requiredRights, setRequiredRights] = useState<IndividualRight[]>([])
+  const [changeRequestAccessPackageSearch, setChangeRequestAccessPackageSearch] = useState("")
+  const [changeRequestIndividualRightSearch, setChangeRequestIndividualRightSearch] = useState("")
+  const [isSubmittingChangeRequest, setIsSubmittingChangeRequest] = useState(false)
+  const [showChangeRequestAccessPackageDropdown, setShowChangeRequestAccessPackageDropdown] = useState(false)
+  const [showChangeRequestIndividualRightDropdown, setShowChangeRequestIndividualRightDropdown] = useState(false)
+
+  const changeRequestAccessPackageDropdownRef = useRef<HTMLDivElement>(null)
+  const changeRequestIndividualRightDropdownRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     const loadTestData = async () => {
@@ -488,6 +514,21 @@ export default function SystembrukerForm() {
 
       if (roleDropdownRef.current && !roleDropdownRef.current.contains(target)) {
         setShowRoleDropdown(false)
+      }
+
+      // Close change request dropdowns
+      if (
+        changeRequestAccessPackageDropdownRef.current &&
+        !changeRequestAccessPackageDropdownRef.current.contains(target)
+      ) {
+        setShowChangeRequestAccessPackageDropdown(false)
+      }
+
+      if (
+        changeRequestIndividualRightDropdownRef.current &&
+        !changeRequestIndividualRightDropdownRef.current.contains(target)
+      ) {
+        setShowChangeRequestIndividualRightDropdown(false)
       }
     }
 
@@ -697,6 +738,210 @@ export default function SystembrukerForm() {
 
   const filteredIndividualRights = individualRights.filter((right) =>
     right.displayName.toLowerCase().includes(individualRightSearch.toLowerCase()),
+  )
+
+  const handleChangeSystemUser = async (item: CreationResult, index: number) => {
+    setUpdatingItemIndex(index)
+
+    try {
+      const response = await fetch("/api/systemuser/byquery", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          systemId: "312605031_Virksomhetsbruker",
+          orgNo: item.partyOrgNo,
+          externalRef: item.externalRef,
+          environment: item.environment?.toLowerCase() || "tt02",
+        }),
+      })
+
+      if (response.status === 404) {
+        setError({
+          title: "Systembruker ikke funnet",
+          message:
+            "Systembrukeren er ikke opprettet ennå. Vennligst godkjenn forespørselen først ved å klikke på 'Åpne godkjenningslenke'.",
+        })
+        setShowErrorModal(true)
+        setUpdatingItemIndex(null)
+        return
+      }
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || `Failed to fetch system user: ${response.status}`)
+      }
+
+      const data = await response.json()
+
+      // Update the creation history with userType and systemUserId
+      setCreationHistory((prev) => {
+        const updated = [...prev]
+        updated[index] = {
+          ...updated[index],
+          userType: data.userType,
+          systemUserId: data.id,
+          accessPackages: data.accessPackages || updated[index].accessPackages,
+          rights: data.rights || updated[index].rights,
+        }
+        return updated
+      })
+
+      // Open the change request modal with the fetched data
+      setChangeRequestItem({ ...item, systemUserId: data.id, accessPackages: data.accessPackages, rights: data.rights })
+      setChangeRequestItemIndex(index)
+      setUnwantedAccessPackages([])
+      setRequiredAccessPackages([])
+      setUnwantedRights([])
+      setRequiredRights([])
+      setShowChangeRequestModal(true)
+
+      console.log("[v0] System user fetched for change request:", data)
+    } catch (error) {
+      console.error("[v0] Error fetching system user:", error)
+      setError({
+        title: "Kunne ikke hente systembruker",
+        message: error instanceof Error ? error.message : String(error),
+      })
+      setShowErrorModal(true)
+    } finally {
+      setUpdatingItemIndex(null)
+    }
+  }
+
+  const handleSubmitChangeRequest = async () => {
+    if (!changeRequestItem || !changeRequestItem.systemUserId) {
+      setError({
+        title: "Validering feilet",
+        message: "Systembruker ID mangler",
+      })
+      setShowErrorModal(true)
+      return
+    }
+
+    setIsSubmittingChangeRequest(true)
+
+    try {
+      // Generate token
+      const tokenResponse = await fetch("/api/token", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          orgNo: "312605031",
+          env: changeRequestItem.environment?.toLowerCase() || "tt02",
+        }),
+      })
+
+      if (!tokenResponse.ok) {
+        throw new Error("Failed to generate token")
+      }
+
+      const { token } = await tokenResponse.json()
+
+      // Prepare request body
+      const requestBody: any = {}
+
+      if (unwantedAccessPackages.length > 0) {
+        requestBody.unwantedAccessPackages = unwantedAccessPackages.map((pkg) => ({ urn: pkg.urn }))
+      }
+
+      if (requiredAccessPackages.length > 0) {
+        requestBody.requiredAccessPackages = requiredAccessPackages.map((pkg) => ({ urn: pkg.urn }))
+      }
+
+      if (unwantedRights.length > 0) {
+        requestBody.unwantedRights = unwantedRights.map((right) => ({
+          resource: [{ value: right.name, id: "urn:altinn:resource" }],
+        }))
+      }
+
+      if (requiredRights.length > 0) {
+        requestBody.requiredRights = requiredRights.map((right) => ({
+          resource: [{ value: right.name, id: "urn:altinn:resource" }],
+        }))
+      }
+
+      // Submit change request
+      const response = await fetch("/api/systemuser/changerequest", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          token,
+          requestBody,
+          environment: changeRequestItem.environment?.toLowerCase() || "tt02",
+          systemUserId: changeRequestItem.systemUserId,
+          correlationId: crypto.randomUUID(),
+        }),
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || `Failed to submit change request: ${response.status}`)
+      }
+
+      const result = await response.json()
+      console.log("[v0] Change request submitted successfully:", result)
+
+      setShowChangeRequestModal(false)
+
+      // Display success modal with confirmUrl
+      if (result.confirmUrl) {
+        setChangeRequestSuccessData({
+          confirmUrl: result.confirmUrl,
+          dagligLederFnr: changeRequestItem.dagligLederFnr || "",
+        })
+        setShowChangeRequestSuccess(true)
+      } else {
+        setError({
+          title: "Endring sendt",
+          message: "Systembruker-endringen er sendt og venter på godkjenning",
+        })
+        setShowErrorModal(true)
+      }
+    } catch (error) {
+      console.error("[v0] Error submitting change request:", error)
+      setError({
+        title: "Kunne ikke sende endring",
+        message: error instanceof Error ? error.message : String(error),
+      })
+      setShowErrorModal(true)
+    } finally {
+      setIsSubmittingChangeRequest(false)
+    }
+  }
+
+  const getCurrentAccessPackages = (): AccessPackage[] => {
+    if (!changeRequestItem?.accessPackages) return []
+    return changeRequestItem.accessPackages
+      .map((pkg: any) => {
+        const matched = accessPackages.find((ap) => ap.urn === pkg.urn)
+        return matched ? matched : null
+      })
+      .filter((pkg): pkg is AccessPackage => pkg !== null)
+  }
+
+  const getCurrentRights = (): IndividualRight[] => {
+    if (!changeRequestItem?.rights) return []
+    return changeRequestItem.rights
+      .map((right: any) => {
+        const resourceValue = right.resource?.[0]?.value
+        const matched = individualRights.find((ir) => ir.name === resourceValue)
+        return matched ? matched : null
+      })
+      .filter((right): right is IndividualRight => right !== null)
+  }
+
+  const filteredChangeRequestAccessPackages = accessPackages.filter(
+    (pkg) =>
+      pkg.displayName.toLowerCase().includes(changeRequestAccessPackageSearch.toLowerCase()) &&
+      !getCurrentAccessPackages().find((current) => current.urn === pkg.urn) &&
+      !requiredAccessPackages.find((req) => req.urn === pkg.urn),
+  )
+
+  const filteredChangeRequestIndividualRights = individualRights.filter(
+    (right) =>
+      right.displayName.toLowerCase().includes(changeRequestIndividualRightSearch.toLowerCase()) &&
+      !getCurrentRights().find((current) => current.name === right.name) &&
+      !requiredRights.find((req) => req.name === right.name),
   )
 
   return (
@@ -1148,6 +1393,11 @@ export default function SystembrukerForm() {
                         ExternalRef: {item.externalRef}
                       </div>
                     )}
+                    {item.userType && (
+                      <div className="text-muted-foreground leading-relaxed">
+                        <span className="font-semibold text-foreground">Type:</span> {item.userType}
+                      </div>
+                    )}
                     {item.accessPackages && item.accessPackages.length > 0 && (
                       <div className="mt-3">
                         <span className="font-semibold text-foreground">Tilgangspakker:</span>
@@ -1185,6 +1435,30 @@ export default function SystembrukerForm() {
                         </div>
                       </div>
                     )}
+                    <div className="mt-4 pt-4 border-t border-border">
+                      {/* CHANGE: Added confirmation URL link */}
+                      <div className="flex gap-3">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleChangeSystemUser(item, index)}
+                          disabled={updatingItemIndex === index}
+                          className="rounded-lg transition-all hover:scale-105 hover:shadow-md"
+                        >
+                          {updatingItemIndex === index ? "Henter..." : "Endre Systembruker"}
+                        </Button>
+                        {item.confirmUrl && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => window.open(item.confirmUrl, "_blank")}
+                            className="rounded-lg transition-all hover:scale-105 hover:shadow-md"
+                          >
+                            Åpne godkjenningslenke
+                          </Button>
+                        )}
+                      </div>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -1245,7 +1519,6 @@ export default function SystembrukerForm() {
                 <div className="p-6 bg-primary/5 rounded-xl border border-primary/20">
                   <h3 className="font-bold text-foreground mb-4 text-lg">Slik logger du inn for å godkjenne:</h3>
                   <ol className="list-decimal list-inside space-y-3 text-sm text-foreground leading-relaxed">
-                    <li>Klikk på lenken nedenfor</li>
                     <li>
                       Logg inn med fødselsnummer:{" "}
                       <strong className="font-mono bg-card px-3 py-1.5 rounded-lg border border-border">
@@ -1290,6 +1563,264 @@ export default function SystembrukerForm() {
                   <Button
                     variant="outline"
                     onClick={() => setShowResultModal(false)}
+                    className="flex-1 h-16 rounded-xl font-semibold"
+                  >
+                    Lukk
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        )}
+
+        {showChangeRequestModal && changeRequestItem && (
+          <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-50 backdrop-blur-sm">
+            <Card className="max-w-4xl w-full max-h-[90vh] overflow-y-auto shadow-2xl rounded-2xl animate-fade-in-up">
+              <CardHeader className="bg-primary/10 border-b border-primary/20">
+                <CardTitle className="text-primary flex items-center gap-3 text-xl font-semibold">
+                  Endre Systembruker
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-6 pt-6">
+                {/* Current Access Packages */}
+                <div>
+                  <Label className="text-lg font-semibold mb-4 block text-foreground">Nåværende tilgangspakker</Label>
+                  <div className="flex flex-wrap gap-2">
+                    {getCurrentAccessPackages().map((pkg) => {
+                      const isMarkedForRemoval = unwantedAccessPackages.find((unwanted) => unwanted.urn === pkg.urn)
+                      return (
+                        <Badge
+                          key={pkg.urn}
+                          className={`flex items-center gap-2 px-4 py-2 text-sm transition-colors rounded-full ${
+                            isMarkedForRemoval
+                              ? "bg-destructive/20 text-destructive border-destructive/40 line-through"
+                              : "bg-primary/10 text-primary border-primary/20"
+                          }`}
+                        >
+                          {pkg.displayName}
+                          <button
+                            className="chip-remove-button ml-1 hover:bg-destructive/20 rounded-full p-1 transition-colors"
+                            onClick={() => {
+                              if (isMarkedForRemoval) {
+                                setUnwantedAccessPackages((prev) => prev.filter((p) => p.urn !== pkg.urn))
+                              } else {
+                                setUnwantedAccessPackages((prev) => [...prev, pkg])
+                              }
+                            }}
+                          >
+                            <X className="h-3 w-3" />
+                          </button>
+                        </Badge>
+                      )
+                    })}
+                    {getCurrentAccessPackages().length === 0 && (
+                      <p className="text-sm text-muted-foreground">Ingen tilgangspakker</p>
+                    )}
+                  </div>
+                </div>
+
+                {/* Add New Access Packages */}
+                <div>
+                  <Label className="text-lg font-semibold mb-4 block text-foreground">
+                    Legg til nye tilgangspakker
+                  </Label>
+                  <div className="relative mt-2" ref={changeRequestAccessPackageDropdownRef}>
+                    <Input
+                      placeholder="Søk etter tilgangspakker..."
+                      value={changeRequestAccessPackageSearch}
+                      onChange={(e) => setChangeRequestAccessPackageSearch(e.target.value)}
+                      onClick={() => setShowChangeRequestAccessPackageDropdown(true)}
+                      onFocus={() => setShowChangeRequestAccessPackageDropdown(true)}
+                      className="h-14 rounded-lg border-border focus:border-primary"
+                    />
+                    {showChangeRequestAccessPackageDropdown && (
+                      <div className="absolute z-50 w-full mt-2 bg-card border border-border rounded-xl shadow-lg max-h-64 overflow-y-auto">
+                        {filteredChangeRequestAccessPackages.map((pkg) => (
+                          <button
+                            key={pkg.urn}
+                            className="w-full px-6 py-4 text-left hover:bg-muted text-sm transition-colors"
+                            onMouseDown={(e) => {
+                              e.preventDefault()
+                              setRequiredAccessPackages((prev) => [...prev, pkg])
+                              setChangeRequestAccessPackageSearch("")
+                              setShowChangeRequestAccessPackageDropdown(false)
+                            }}
+                          >
+                            {pkg.displayName}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                  <div className="flex flex-wrap gap-2 mt-4">
+                    {requiredAccessPackages.map((pkg) => (
+                      <Badge
+                        key={pkg.urn}
+                        className="flex items-center gap-2 px-4 py-2 text-sm bg-green-500/10 text-green-600 border-green-500/20 rounded-full"
+                      >
+                        {pkg.displayName}
+                        <button
+                          className="chip-remove-button ml-1 hover:bg-destructive/20 rounded-full p-1 transition-colors"
+                          onClick={() => {
+                            setRequiredAccessPackages((prev) => prev.filter((r) => r.urn !== pkg.urn))
+                          }}
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      </Badge>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Current Individual Rights */}
+                <div>
+                  <Label className="text-lg font-semibold mb-4 block text-foreground">
+                    Nåværende enkeltrettigheter
+                  </Label>
+                  <div className="flex flex-wrap gap-2">
+                    {getCurrentRights().map((right) => {
+                      const isMarkedForRemoval = unwantedRights.find((unwanted) => unwanted.name === right.name)
+                      return (
+                        <Badge
+                          key={right.name}
+                          className={`flex items-center gap-2 px-4 py-2 text-sm transition-colors rounded-full ${
+                            isMarkedForRemoval
+                              ? "bg-destructive/20 text-destructive border-destructive/40 line-through"
+                              : "bg-primary/10 text-primary border-primary/20"
+                          }`}
+                        >
+                          {right.displayName}
+                          <button
+                            className="chip-remove-button ml-1 hover:bg-destructive/20 rounded-full p-1 transition-colors"
+                            onClick={() => {
+                              if (isMarkedForRemoval) {
+                                setUnwantedRights((prev) => prev.filter((r) => r.name !== right.name))
+                              } else {
+                                setUnwantedRights((prev) => [...prev, right])
+                              }
+                            }}
+                          >
+                            <X className="h-3 w-3" />
+                          </button>
+                        </Badge>
+                      )
+                    })}
+                    {getCurrentRights().length === 0 && (
+                      <p className="text-sm text-muted-foreground">Ingen enkeltrettigheter</p>
+                    )}
+                  </div>
+                </div>
+
+                {/* Add New Individual Rights */}
+                <div>
+                  <Label className="text-lg font-semibold mb-4 block text-foreground">
+                    Legg til nye enkeltrettigheter
+                  </Label>
+                  <div className="relative mt-2" ref={changeRequestIndividualRightDropdownRef}>
+                    <Input
+                      placeholder="Søk etter enkeltrettigheter..."
+                      value={changeRequestIndividualRightSearch}
+                      onChange={(e) => setChangeRequestIndividualRightSearch(e.target.value)}
+                      onClick={() => setShowChangeRequestIndividualRightDropdown(true)}
+                      onFocus={() => setShowChangeRequestIndividualRightDropdown(true)}
+                      className="h-14 rounded-lg border-border focus:border-primary"
+                    />
+                    {showChangeRequestIndividualRightDropdown && (
+                      <div className="absolute z-50 w-full mt-2 bg-card border border-border rounded-xl shadow-lg max-h-64 overflow-y-auto">
+                        {filteredChangeRequestIndividualRights.map((right) => (
+                          <button
+                            key={right.name}
+                            className="w-full px-6 py-4 text-left hover:bg-muted text-sm transition-colors"
+                            onMouseDown={(e) => {
+                              e.preventDefault()
+                              setRequiredRights((prev) => [...prev, right])
+                              setChangeRequestIndividualRightSearch("")
+                              setShowChangeRequestIndividualRightDropdown(false)
+                            }}
+                          >
+                            {right.displayName}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                  <div className="flex flex-wrap gap-2 mt-4">
+                    {requiredRights.map((right) => (
+                      <Badge
+                        key={right.name}
+                        className="flex items-center gap-2 px-4 py-2 text-sm bg-green-500/10 text-green-600 border-green-500/20 rounded-full"
+                      >
+                        {right.displayName}
+                        <button
+                          className="chip-remove-button ml-1 hover:bg-destructive/20 rounded-full p-1 transition-colors"
+                          onClick={() => {
+                            setRequiredRights((prev) => prev.filter((r) => r.name !== right.name))
+                          }}
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      </Badge>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="flex gap-3 pt-4">
+                  <Button
+                    onClick={handleSubmitChangeRequest}
+                    disabled={isSubmittingChangeRequest}
+                    className="flex-1 h-16 font-bold rounded-xl shadow-md hover:shadow-lg transition-all hover:scale-[1.02] bg-primary hover:brightness-105"
+                  >
+                    {isSubmittingChangeRequest ? "Sender..." : "Send endringsforespørsel"}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onClick={() => setShowChangeRequestModal(false)}
+                    disabled={isSubmittingChangeRequest}
+                    className="flex-1 h-16 rounded-xl font-semibold"
+                  >
+                    Avbryt
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        )}
+
+        {showChangeRequestSuccess && changeRequestSuccessData && (
+          <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-50 backdrop-blur-sm">
+            <Card className="max-w-2xl w-full max-h-[90vh] overflow-y-auto shadow-2xl rounded-2xl animate-fade-in-up">
+              <CardHeader className="bg-primary/10 border-b border-primary/20">
+                <CardTitle className="text-primary flex items-center gap-3 text-xl font-semibold">
+                  Endringsforespørsel sendt
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-6 pt-6">
+                <div className="p-6 bg-primary/5 rounded-xl border border-primary/20">
+                  <h3 className="font-bold text-foreground mb-4 text-lg">Slik logger du inn for å godkjenne:</h3>
+                  <ol className="list-decimal list-inside space-y-3 text-sm text-foreground leading-relaxed">
+                    <li>
+                      Logg inn med fødselsnummer:{" "}
+                      <strong className="font-mono bg-card px-3 py-1.5 rounded-lg border border-border">
+                        {changeRequestSuccessData.dagligLederFnr || "Se testdata"}
+                      </strong>
+                    </li>
+                    <li>Godkjenn endringsforespørselen</li>
+                  </ol>
+                </div>
+
+                <div className="flex gap-3 pt-4">
+                  <Button
+                    onClick={() => window.open(changeRequestSuccessData.confirmUrl, "_blank")}
+                    className="flex-1 h-16 font-bold rounded-xl shadow-md hover:shadow-lg transition-all hover:scale-[1.02] bg-primary hover:brightness-105"
+                  >
+                    Åpne godkjenningslenke
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      setShowChangeRequestSuccess(false)
+                      setChangeRequestSuccessData(null)
+                    }}
                     className="flex-1 h-16 rounded-xl font-semibold"
                   >
                     Lukk

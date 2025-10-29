@@ -660,7 +660,7 @@ export default function SystembrukerForm() {
     const savedSystem = localStorage.getItem("custom-system")
     if (savedSystem) {
       try {
-        const parsed = JSON.JSON.parse(savedSystem)
+        const parsed = JSON.parse(savedSystem)
         setCustomSystem(parsed)
         setUseCustomSystem(true)
       } catch (error) {
@@ -1296,7 +1296,7 @@ export default function SystembrukerForm() {
                     className="h-4 w-4 text-primary focus:ring-primary cursor-pointer"
                   />
                   <Label htmlFor="useCustomSystem" className="font-medium text-foreground cursor-pointer">
-                    Opprett nytt system
+                    Opprett nytt system i Systemregisteret for leverandør
                   </Label>
                 </div>
               </div>
@@ -1305,7 +1305,9 @@ export default function SystembrukerForm() {
             {useCustomSystem && !customSystem && (
               <div className="p-6 bg-primary/5 rounded-xl border-2 border-primary/20 space-y-6">
                 <div className="flex items-center justify-between">
-                  <h3 className="font-bold text-foreground text-lg">Opprett nytt system</h3>
+                  <h3 className="font-bold text-foreground text-lg">
+                    Opprett nytt system i Systemregisteret for leverandør
+                  </h3>
                   <Button
                     onClick={handlePrefillTestData}
                     variant="outline"
@@ -1327,19 +1329,19 @@ export default function SystembrukerForm() {
                       value={countryCode}
                       onChange={(e) => setCountryCode(e.target.value)}
                       placeholder="0192"
-                      className="h-12 rounded-lg border-border focus:border-primary"
+                      className="h-12 rounded-lg border-border focus:border-primary bg-white"
                     />
                   </div>
                   <div>
                     <Label htmlFor="vendorOrgNo" className="font-semibold text-foreground mb-2 block">
-                      Organisasjonsnummer *
+                      Organisasjonsnummer (leverandør) *
                     </Label>
                     <Input
                       id="vendorOrgNo"
                       value={vendorOrgNo}
                       onChange={(e) => setVendorOrgNo(e.target.value)}
                       placeholder="310547891"
-                      className="h-12 rounded-lg border-border focus:border-primary"
+                      className="h-12 rounded-lg border-border focus:border-primary bg-white"
                     />
                   </div>
                   <div>
@@ -1351,7 +1353,7 @@ export default function SystembrukerForm() {
                       value={systemIdName}
                       onChange={(e) => setSystemIdName(e.target.value)}
                       placeholder="SystemMedApp"
-                      className="h-12 rounded-lg border-border focus:border-primary"
+                      className="h-12 rounded-lg border-border focus:border-primary bg-white"
                     />
                   </div>
                 </div>
@@ -1380,19 +1382,19 @@ export default function SystembrukerForm() {
                       value={systemNameNb}
                       onChange={(e) => setSystemNameNb(e.target.value)}
                       placeholder="Norsk bokmål"
-                      className="h-12 rounded-lg border-border focus:border-primary"
+                      className="h-12 rounded-lg border-border focus:border-primary bg-white"
                     />
                     <Input
                       value={systemNameNn}
                       onChange={(e) => setSystemNameNn(e.target.value)}
                       placeholder="Nynorsk (valgfritt)"
-                      className="h-12 rounded-lg border-border focus:border-primary"
+                      className="h-12 rounded-lg border-border focus:border-primary bg-white"
                     />
                     <Input
                       value={systemNameEn}
                       onChange={(e) => setSystemNameEn(e.target.value)}
                       placeholder="English (valgfritt)"
-                      className="h-12 rounded-lg border-border focus:border-primary"
+                      className="h-12 rounded-lg border-border focus:border-primary bg-white"
                     />
                   </div>
                 </div>
@@ -1404,19 +1406,19 @@ export default function SystembrukerForm() {
                       value={systemDescNb}
                       onChange={(e) => setSystemDescNb(e.target.value)}
                       placeholder="Norsk bokmål"
-                      className="h-12 rounded-lg border-border focus:border-primary"
+                      className="h-12 rounded-lg border-border focus:border-primary bg-white"
                     />
                     <Input
                       value={systemDescNn}
                       onChange={(e) => setSystemDescNn(e.target.value)}
                       placeholder="Nynorsk (valgfritt)"
-                      className="h-12 rounded-lg border-border focus:border-primary"
+                      className="h-12 rounded-lg border-border focus:border-primary bg-white"
                     />
                     <Input
                       value={systemDescEn}
                       onChange={(e) => setSystemDescEn(e.target.value)}
                       placeholder="English (valgfritt)"
-                      className="h-12 rounded-lg border-border focus:border-primary"
+                      className="h-12 rounded-lg border-border focus:border-primary bg-white"
                     />
                   </div>
                 </div>
@@ -1430,7 +1432,7 @@ export default function SystembrukerForm() {
                       onChange={(e) => setSystemAccessPackageSearch(e.target.value)}
                       onClick={() => setShowSystemAccessPackageDropdown(true)}
                       onFocus={() => setShowSystemAccessPackageDropdown(true)}
-                      className="h-12 rounded-lg border-border focus:border-primary"
+                      className="h-12 rounded-lg border-border focus:border-primary bg-white"
                     />
                     {showSystemAccessPackageDropdown && (
                       <div className="absolute z-50 w-full mt-2 bg-card border border-border rounded-xl shadow-lg max-h-64 overflow-y-auto">
@@ -1482,7 +1484,7 @@ export default function SystembrukerForm() {
                       onChange={(e) => setSystemRightSearch(e.target.value)}
                       onClick={() => setShowSystemRightDropdown(true)}
                       onFocus={() => setShowSystemRightDropdown(true)}
-                      className="h-12 rounded-lg border-border focus:border-primary"
+                      className="h-12 rounded-lg border-border focus:border-primary bg-white"
                     />
                     {showSystemRightDropdown && (
                       <div className="absolute z-50 w-full mt-2 bg-card border border-border rounded-xl shadow-lg max-h-64 overflow-y-auto">
@@ -1535,7 +1537,7 @@ export default function SystembrukerForm() {
                       value={systemClientId}
                       onChange={(e) => setSystemClientId(e.target.value)}
                       placeholder="client-id-123"
-                      className="h-12 rounded-lg border-border focus:border-primary"
+                      className="h-12 rounded-lg border-border focus:border-primary bg-white"
                     />
                   </div>
 

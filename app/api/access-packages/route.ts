@@ -5,9 +5,11 @@ export async function GET(request: NextRequest) {
     const searchParams = request.nextUrl.searchParams
     const environment = searchParams.get("environment") || "TT02"
 
+    console.log("[v0] Access packages API - received environment:", environment)
+
     // Determine base URL based on environment
     let baseUrl: string
-    if (environment === "TT02") {
+    if (environment.toUpperCase() === "TT02") {
       baseUrl = "https://platform.tt02.altinn.no"
     } else {
       // AT22, AT23, AT24 all use at23 base URL

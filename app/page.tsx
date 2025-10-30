@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from "react"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
@@ -17,8 +17,11 @@ import {
   AlertCircle,
   Sparkles,
   XCircle,
+  Loader2,
+  ExternalLink,
+  CheckCircle2,
 } from "lucide-react"
-import systemVendorsData from "@/data/system-vendors.json"
+import systemVendors from "@/data/system-vendors.json"
 
 type SystembrukerType = "agent" | "standard"
 type Role = "forretningsfoerer" | "revisor" | "regnskapsfoerere" | "dagligLeder" | "manual"
@@ -95,10 +98,18 @@ interface CustomSystem {
   integrationTitle?: string
 }
 
+// Added from updates
+interface Resource {
+  identifier: string
+  title: string
+  description: string
+  resourceType: string
+}
+
 const accessPackages: AccessPackage[] = [
   { urn: "urn:altinn:accesspackage:ansvarlig-revisor", displayName: "Ansvarlig revisor" },
-  { urn: "urn:altinn:accesspackage:forretningsforer-eiendom", displayName: "Forretningsfører eiendom" },
-  { urn: "urn:altinn:accesspackage:regnskapsforer-lonn", displayName: "Regnskapsfører lønn" },
+  { urn: "urn:altinn:accesspackage:forretningsfører-eiendom", displayName: "Forretningsfører eiendom" },
+  { urn: "urn:altinn:accesspackage:regnskapsfører-lonn", displayName: "Regnskapsfører lønn" },
   { urn: "urn:altinn:accesspackage:konkursbo-tilgangsstyrer", displayName: "Konkursbo tilgangsstyrer" },
   { urn: "urn:altinn:accesspackage:hovedadministrator", displayName: "Hovedadministrator" },
   { urn: "urn:altinn:accesspackage:konkursbo-lesetilgang", displayName: "Konkursbo lesetilgang" },
@@ -158,7 +169,7 @@ const accessPackages: AccessPackage[] = [
   { urn: "urn:altinn:accesspackage:skoleleder", displayName: "Skoleleder" },
   { urn: "urn:altinn:accesspackage:skoleeier", displayName: "Skoleeier" },
   {
-    urn: "urn:altinn:accesspackage:statsforvalter-skole-og-opplearing",
+    urn: "urn:altinn:accesspackage:statsforvalter-skole-og-opplering",
     displayName: "Statsforvalter skole og opplæring",
   },
   { urn: "urn:altinn:accesspackage:statsforvalter-barnehage", displayName: "Statsforvalter barnehage" },
@@ -268,11 +279,6 @@ const accessPackages: AccessPackage[] = [
   { urn: "urn:altinn:accesspackage:maskinporten-scopes", displayName: "Maskinporten scopes" },
   { urn: "urn:altinn:accesspackage:maskinlesbare-hendelser", displayName: "Maskinlesbare hendelser" },
   { urn: "urn:altinn:accesspackage:maskinporten-scopes-nuf", displayName: "Maskinporten scopes NUF" },
-]
-
-const individualRights: IndividualRight[] = [
-  { name: "authentication-e2e-test", displayName: "authentication-e2e-test" },
-  { name: "vegardtestressurs", displayName: "vegardtestressurs" },
 ]
 
 const roleConfig = {
@@ -417,6 +423,75 @@ export default function SystembrukerForm() {
   const systemAccessPackageDropdownRef = useRef<HTMLDivElement>(null)
   const systemRightDropdownRef = useRef<HTMLDivElement>(null)
 
+  const [resources, setResources] = useState<Resource[]>([])
+  const [isLoadingResources, setIsLoadingResources] = useState(false)
+
+  const [accessPackages, setAccessPackages] = useState<AccessPackage[]>([])
+  const [isLoadingAccessPackages, setIsLoadingAccessPackages] = useState(false)
+
+  useEffect(() => {
+    // to prevent validation errors from environment-specific resources
+    setSystemRights([])
+    setSystemAccessPackages([])
+    setSystemAccessPackageSearch("")
+    setSystemRightSearch("")
+  }, [selectedEnvironment])
+
+  useEffect(() => {
+    const fetchResources = async () => {
+      setIsLoadingResources(true)
+      try {
+        const response = await fetch(`/api/resources?env=${selectedEnvironment}`)
+        if (!response.ok) {
+          throw new Error("Failed to fetch resources")
+        }
+        const data = await response.json()
+        setResources(data)
+      } catch (error) {
+        console.error("[v0] Error fetching resources:", error)
+      } finally {
+        setIsLoadingResources(false)
+      }
+    }
+
+    fetchResources()
+  }, [selectedEnvironment])
+
+  useEffect(() => {
+    const fetchAccessPackages = async () => {
+      setIsLoadingAccessPackages(true)
+      try {
+        const response = await fetch(`/api/access-packages?environment=${selectedEnvironment}`)
+        if (!response.ok) {
+          throw new Error("Failed to fetch access packages")
+        }
+        const data = await response.json()
+
+        if (!data.accessPackages || !Array.isArray(data.accessPackages)) {
+          console.error("[v0] Invalid access packages response:", data)
+          setAccessPackages([])
+          return
+        }
+
+        // Transform the API response to AccessPackage format
+        const transformedPackages: AccessPackage[] = data.accessPackages.map((pkg: any) => ({
+          urn: pkg.urn,
+          displayName: pkg.name || pkg.urn,
+        }))
+
+        console.log("[v0] Access packages loaded:", transformedPackages.length)
+        setAccessPackages(transformedPackages)
+      } catch (error) {
+        console.error("[v0] Error fetching access packages:", error)
+        setAccessPackages([])
+      } finally {
+        setIsLoadingAccessPackages(false)
+      }
+    }
+
+    fetchAccessPackages()
+  }, [selectedEnvironment])
+
   useEffect(() => {
     const loadTestData = async () => {
       setLoading(true)
@@ -490,6 +565,8 @@ export default function SystembrukerForm() {
     loadTestData()
   }, [])
 
+  // Removed duplicate useEffect for resources
+
   const fetchRandomTenorOrg = async () => {
     try {
       const response = await fetch("/api/daglig-leder", {
@@ -511,8 +588,8 @@ export default function SystembrukerForm() {
   }
 
   const getRandomVendorData = () => {
-    const randomIndex = Math.floor(Math.random() * systemVendorsData.length)
-    const vendor = systemVendorsData[randomIndex]
+    const randomIndex = Math.floor(Math.random() * systemVendors.length)
+    const vendor = systemVendors[randomIndex]
     // Convert "Nordbyte AS" to "NordbyteAS" for systemId
     const systemIdName = vendor.leverandor.replace(/\s+/g, "").replace(/[^a-zA-Z0-9]/g, "")
     return {
@@ -557,7 +634,7 @@ export default function SystembrukerForm() {
           const response = await fetch("/api/daglig-leder-by-org", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ organisasjonsnummer: manualOrgNr }),
+            body: JSON.JSON.stringify({ organisasjonsnummer: manualOrgNr }),
           })
 
           if (response.ok) {
@@ -660,6 +737,7 @@ export default function SystembrukerForm() {
     const savedSystem = localStorage.getItem("custom-system")
     if (savedSystem) {
       try {
+        // </CHANGE> Fixed typo: JSON.JSON.parse -> JSON.parse
         const parsed = JSON.parse(savedSystem)
         setCustomSystem(parsed)
         setUseCustomSystem(true)
@@ -1005,7 +1083,11 @@ export default function SystembrukerForm() {
     if (useCustomSystem && customSystem) {
       return customSystem.rights
     }
-    return individualRights
+    // Convert resources to IndividualRight format
+    return resources.map((resource) => ({
+      name: resource.identifier,
+      displayName: resource.title,
+    }))
   }
 
   const filteredAccessPackages = getAvailableAccessPackages().filter((pkg) =>
@@ -1198,6 +1280,12 @@ export default function SystembrukerForm() {
       .filter((pkg): pkg is AccessPackage => pkg !== null)
   }
 
+  // FIX: Declare individualRights variable
+  const individualRights: IndividualRight[] = resources.map((resource) => ({
+    name: resource.identifier,
+    displayName: resource.title,
+  }))
+
   const getCurrentRights = (): IndividualRight[] => {
     if (!changeRequestItem?.rights) return []
     return changeRequestItem.rights
@@ -1216,6 +1304,13 @@ export default function SystembrukerForm() {
       !requiredAccessPackages.find((req) => req.urn === pkg.urn),
   )
 
+  const filteredSystemIndividualRights = resources
+    .map((resource) => ({
+      name: resource.identifier,
+      displayName: resource.title,
+    }))
+    .filter((right) => right.displayName.toLowerCase().includes(systemRightSearch.toLowerCase()))
+
   const filteredChangeRequestIndividualRights = individualRights.filter(
     (right) =>
       right.displayName.toLowerCase().includes(changeRequestIndividualRightSearch.toLowerCase()) &&
@@ -1227,13 +1322,18 @@ export default function SystembrukerForm() {
     pkg.displayName.toLowerCase().includes(systemAccessPackageSearch.toLowerCase()),
   )
 
-  // Filter out rights that are not in the `individualRights` list
-  const filteredSystemIndividualRights = individualRights.filter((right) =>
-    right.displayName.toLowerCase().includes(systemRightSearch.toLowerCase()),
+  // Determine if the "Create New System" option should be shown
+  const useCreateNewSystem = useCustomSystem
+
+  // Filter resources based on search input and available rights
+  const filteredSystemResources = resources.filter(
+    (resource) =>
+      resource.title.toLowerCase().includes(systemRightSearch.toLowerCase()) ||
+      resource.identifier.toLowerCase().includes(systemRightSearch.toLowerCase()),
   )
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted/20">
+    <div className="min-h-screen bg-gradient-to-br from-background via-muted/30 to-background p-8">
       <div className="container mx-auto px-4 py-8 max-w-5xl">
         <Card className="shadow-2xl rounded-2xl overflow-hidden border-2 border-primary/10">
           <CardHeader className="bg-gradient-to-r from-primary/10 via-primary/5 to-background border-b-2 border-primary/20 pb-8">
@@ -1272,7 +1372,7 @@ export default function SystembrukerForm() {
                     type="radio"
                     id="useExistingSystem"
                     name="systemSelection"
-                    checked={!useCustomSystem}
+                    checked={!useCreateNewSystem}
                     onChange={() => {
                       setUseCustomSystem(false)
                       setCustomSystem(null)
@@ -1291,7 +1391,7 @@ export default function SystembrukerForm() {
                     type="radio"
                     id="useCustomSystem"
                     name="systemSelection"
-                    checked={useCustomSystem}
+                    checked={useCreateNewSystem}
                     onChange={() => setUseCustomSystem(true)}
                     className="h-4 w-4 text-primary focus:ring-primary cursor-pointer"
                   />
@@ -1302,267 +1402,290 @@ export default function SystembrukerForm() {
               </div>
             </div>
 
-            {useCustomSystem && !customSystem && (
-              <div className="p-6 bg-primary/5 rounded-xl border-2 border-primary/20 space-y-6">
-                <div className="flex items-center justify-between">
-                  <h3 className="font-bold text-foreground text-lg">
+            {/* System Creation Form - Expanded inline when useCreateNewSystem is true */}
+            {useCreateNewSystem && (
+              <Card className="border-2 border-primary/20 shadow-xl bg-card/95 backdrop-blur">
+                <CardHeader className="border-b border-border/50 bg-muted/30">
+                  <CardTitle className="text-2xl font-bold text-foreground">
                     Opprett nytt system i Systemregisteret for leverandør
-                  </h3>
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="p-8 space-y-6">
+                  <div className="flex items-center justify-between">
+                    <h3 className="font-bold text-foreground text-lg">Systemdetaljer</h3>
+                    <Button
+                      onClick={handlePrefillTestData}
+                      variant="outline"
+                      size="sm"
+                      className="rounded-lg flex items-center gap-2 bg-transparent"
+                    >
+                      <Sparkles className="h-4 w-4" />
+                      Preutfyll med testdata
+                    </Button>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div>
+                      <Label htmlFor="countryCode" className="font-semibold text-foreground mb-2 block">
+                        Landskode *
+                      </Label>
+                      <Input
+                        id="countryCode"
+                        value={countryCode}
+                        onChange={(e) => setCountryCode(e.target.value)}
+                        placeholder="0192"
+                        className="h-12 rounded-lg border-border focus:border-primary bg-white"
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="vendorOrgNo" className="font-semibold text-foreground mb-2 block">
+                        Organisasjonsnummer (leverandør) *
+                      </Label>
+                      <Input
+                        id="vendorOrgNo"
+                        value={vendorOrgNo}
+                        onChange={(e) => setVendorOrgNo(e.target.value)}
+                        placeholder="310547891"
+                        className="h-12 rounded-lg border-border focus:border-primary bg-white"
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="systemIdName" className="font-semibold text-foreground mb-2 block">
+                        System ID navn *
+                      </Label>
+                      <Input
+                        id="systemIdName"
+                        value={systemIdName}
+                        onChange={(e) => setSystemIdName(e.target.value)}
+                        placeholder="SystemMedApp"
+                        className="h-12 rounded-lg border-border focus:border-primary bg-white"
+                      />
+                    </div>
+                  </div>
+
+                  {vendorOrgNo && systemIdName && (
+                    <div className="bg-muted/50 p-4 rounded-lg space-y-2">
+                      <p className="text-sm text-muted-foreground">
+                        <span className="font-semibold">System ID:</span>{" "}
+                        <code className="bg-background px-2 py-1 rounded text-foreground">
+                          {vendorOrgNo}_{systemIdName}
+                        </code>
+                      </p>
+                      <p className="text-sm text-muted-foreground">
+                        <span className="font-semibold">Vendor ID:</span>{" "}
+                        <code className="bg-background px-2 py-1 rounded text-foreground">
+                          {countryCode}:{vendorOrgNo}
+                        </code>
+                      </p>
+                    </div>
+                  )}
+
+                  <div>
+                    <Label className="font-semibold text-foreground mb-3 block">Navn *</Label>
+                    <div className="space-y-3">
+                      <Input
+                        value={systemNameNb}
+                        onChange={(e) => setSystemNameNb(e.target.value)}
+                        placeholder="Norsk bokmål"
+                        className="h-12 rounded-lg border-border focus:border-primary bg-white"
+                      />
+                      <Input
+                        value={systemNameNn}
+                        onChange={(e) => setSystemNameNn(e.target.value)}
+                        placeholder="Nynorsk (valgfritt)"
+                        className="h-12 rounded-lg border-border focus:border-primary bg-white"
+                      />
+                      <Input
+                        value={systemNameEn}
+                        onChange={(e) => setSystemNameEn(e.target.value)}
+                        placeholder="English (valgfritt)"
+                        className="h-12 rounded-lg border-border focus:border-primary bg-white"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <Label className="font-semibold text-foreground mb-3 block">Beskrivelse *</Label>
+                    <div className="space-y-3">
+                      <Input
+                        value={systemDescNb}
+                        onChange={(e) => setSystemDescNb(e.target.value)}
+                        placeholder="Norsk bokmål"
+                        className="h-12 rounded-lg border-border focus:border-primary bg-white"
+                      />
+                      <Input
+                        value={systemDescNn}
+                        onChange={(e) => setSystemDescNn(e.target.value)}
+                        placeholder="Nynorsk (valgfritt)"
+                        className="h-12 rounded-lg border-border focus:border-primary bg-white"
+                      />
+                      <Input
+                        value={systemDescEn}
+                        onChange={(e) => setSystemDescEn(e.target.value)}
+                        placeholder="English (valgfritt)"
+                        className="h-12 rounded-lg border-border focus:border-primary bg-white"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <Label className="font-semibold text-foreground mb-3 block">Tilgangspakker *</Label>
+                    <div className="relative" ref={systemAccessPackageDropdownRef}>
+                      <Input
+                        placeholder="Søk etter tilgangspakker..."
+                        value={systemAccessPackageSearch}
+                        onChange={(e) => setSystemAccessPackageSearch(e.target.value)}
+                        onClick={() => setShowSystemAccessPackageDropdown(true)}
+                        onFocus={() => setShowSystemAccessPackageDropdown(true)}
+                        className="h-12 rounded-lg border-border focus:border-primary bg-white"
+                      />
+                      {showSystemAccessPackageDropdown && (
+                        <div className="absolute z-50 w-full mt-2 bg-card border border-border rounded-xl shadow-lg max-h-64 overflow-y-auto">
+                          {filteredSystemAccessPackages.map((pkg) => (
+                            <button
+                              key={pkg.urn}
+                              className="w-full px-6 py-4 text-left hover:bg-muted text-sm transition-colors"
+                              onMouseDown={(e) => {
+                                e.preventDefault()
+                                if (!systemAccessPackages.find((p) => p.urn === pkg.urn)) {
+                                  setSystemAccessPackages((prev) => [...prev, pkg])
+                                }
+                                setSystemAccessPackageSearch("")
+                                setShowSystemAccessPackageDropdown(false)
+                              }}
+                            >
+                              {pkg.displayName}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                    <div className="flex flex-wrap gap-2 mt-3">
+                      {systemAccessPackages.map((pkg) => (
+                        <Badge
+                          key={pkg.urn}
+                          className="flex items-center gap-2 px-3 py-1.5 text-sm bg-primary/10 text-primary border-primary/20 rounded-full"
+                        >
+                          {pkg.displayName}
+                          <button
+                            className="chip-remove-button ml-1 hover:bg-destructive/20 rounded-full p-1 transition-colors"
+                            onClick={() => {
+                              setSystemAccessPackages((prev) => prev.filter((p) => p.urn !== pkg.urn))
+                            }}
+                          >
+                            <XCircle className="h-3 w-3" />
+                          </button>
+                        </Badge>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Individual Rights */}
+                  <div>
+                    <Label className="font-semibold text-foreground mb-3 block">Enkeltrettigheter (valgfritt)</Label>
+                    {isLoadingResources && <p className="text-sm text-muted-foreground mb-3">Laster ressurser...</p>}
+                    <div className="relative" ref={systemRightDropdownRef}>
+                      <Input
+                        placeholder="Søk etter enkeltrettigheter fra ressursregisteret..."
+                        value={systemRightSearch}
+                        onChange={(e) => setSystemRightSearch(e.target.value)}
+                        onClick={() => setShowSystemRightDropdown(true)}
+                        onFocus={() => setShowSystemRightDropdown(true)}
+                        className="h-12 rounded-lg border-border focus:border-primary bg-white"
+                        disabled={isLoadingResources}
+                      />
+                      {showSystemRightDropdown && !isLoadingResources && (
+                        <div className="absolute z-50 w-full mt-2 bg-card border border-border rounded-xl shadow-lg max-h-64 overflow-y-auto">
+                          {filteredSystemResources.length > 0 ? (
+                            filteredSystemResources.map((resource) => (
+                              <button
+                                key={resource.identifier}
+                                className="w-full px-6 py-4 text-left hover:bg-muted transition-colors border-b border-border/50 last:border-0"
+                                onMouseDown={(e) => {
+                                  e.preventDefault()
+                                  if (!systemRights.find((r) => r.name === resource.identifier)) {
+                                    setSystemRights((prev) => [
+                                      ...prev,
+                                      { name: resource.identifier, displayName: resource.title },
+                                    ])
+                                  }
+                                  setSystemRightSearch("")
+                                  setShowSystemRightDropdown(false)
+                                }}
+                              >
+                                <div className="font-medium text-sm text-foreground">{resource.title}</div>
+                                <div className="text-xs text-muted-foreground mt-1">{resource.identifier}</div>
+                                {resource.description && (
+                                  <div className="text-xs text-muted-foreground mt-1 line-clamp-2">
+                                    {resource.description}
+                                  </div>
+                                )}
+                                <div className="text-xs text-primary mt-1">{resource.resourceType}</div>
+                              </button>
+                            ))
+                          ) : (
+                            <div className="px-6 py-4 text-sm text-muted-foreground">Ingen ressurser funnet</div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                    <div className="flex flex-wrap gap-2 mt-3">
+                      {systemRights.map((right) => (
+                        <Badge
+                          key={right.name}
+                          className="flex items-center gap-2 px-3 py-1.5 text-sm bg-primary/10 text-primary border-primary/20 rounded-full"
+                        >
+                          {right.displayName}
+                          <button
+                            className="chip-remove-button ml-1 hover:bg-destructive/20 rounded-full p-1 transition-colors"
+                            onClick={() => {
+                              setSystemRights((prev) => prev.filter((r) => r.name !== right.name))
+                            }}
+                          >
+                            <XCircle className="h-3 w-3" />
+                          </button>
+                        </Badge>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                      <Label htmlFor="systemClientId" className="font-semibold text-foreground mb-2 block">
+                        Client ID (valgfritt)
+                      </Label>
+                      <Input
+                        id="systemClientId"
+                        value={systemClientId}
+                        onChange={(e) => setSystemClientId(e.target.value)}
+                        placeholder="client-id-123"
+                        className="h-12 rounded-lg border-border focus:border-primary bg-white"
+                      />
+                    </div>
+
+                    <div className="flex items-center space-x-3 pt-8">
+                      <input
+                        type="checkbox"
+                        id="systemIsVisible"
+                        checked={systemIsVisible}
+                        onChange={(e) => setSystemIsVisible(e.target.checked)}
+                        className="h-5 w-5 rounded border-border text-primary focus:ring-primary"
+                      />
+                      <Label htmlFor="systemIsVisible" className="font-semibold text-foreground cursor-pointer">
+                        Synlig system (isVisible)
+                      </Label>
+                    </div>
+                  </div>
+
                   <Button
-                    onClick={handlePrefillTestData}
-                    variant="outline"
-                    size="sm"
-                    className="rounded-lg flex items-center gap-2 bg-transparent"
+                    onClick={handleCreateSystem}
+                    disabled={isCreatingSystem}
+                    className="w-full h-14 font-bold rounded-xl shadow-md hover:shadow-lg transition-all hover:scale-[1.02] bg-primary hover:brightness-105"
                   >
-                    <Sparkles className="h-4 w-4" />
-                    Preutfyll med testdata
+                    {isCreatingSystem ? "Oppretter..." : "Opprett system"}
                   </Button>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div>
-                    <Label htmlFor="countryCode" className="font-semibold text-foreground mb-2 block">
-                      Landskode *
-                    </Label>
-                    <Input
-                      id="countryCode"
-                      value={countryCode}
-                      onChange={(e) => setCountryCode(e.target.value)}
-                      placeholder="0192"
-                      className="h-12 rounded-lg border-border focus:border-primary bg-white"
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="vendorOrgNo" className="font-semibold text-foreground mb-2 block">
-                      Organisasjonsnummer (leverandør) *
-                    </Label>
-                    <Input
-                      id="vendorOrgNo"
-                      value={vendorOrgNo}
-                      onChange={(e) => setVendorOrgNo(e.target.value)}
-                      placeholder="310547891"
-                      className="h-12 rounded-lg border-border focus:border-primary bg-white"
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="systemIdName" className="font-semibold text-foreground mb-2 block">
-                      System ID navn *
-                    </Label>
-                    <Input
-                      id="systemIdName"
-                      value={systemIdName}
-                      onChange={(e) => setSystemIdName(e.target.value)}
-                      placeholder="SystemMedApp"
-                      className="h-12 rounded-lg border-border focus:border-primary bg-white"
-                    />
-                  </div>
-                </div>
-
-                {vendorOrgNo && systemIdName && (
-                  <div className="bg-muted/50 p-4 rounded-lg space-y-2">
-                    <p className="text-sm text-muted-foreground">
-                      <span className="font-semibold">System ID:</span>{" "}
-                      <code className="bg-background px-2 py-1 rounded text-foreground">
-                        {vendorOrgNo}_{systemIdName}
-                      </code>
-                    </p>
-                    <p className="text-sm text-muted-foreground">
-                      <span className="font-semibold">Vendor ID:</span>{" "}
-                      <code className="bg-background px-2 py-1 rounded text-foreground">
-                        {countryCode}:{vendorOrgNo}
-                      </code>
-                    </p>
-                  </div>
-                )}
-
-                <div>
-                  <Label className="font-semibold text-foreground mb-3 block">Navn *</Label>
-                  <div className="space-y-3">
-                    <Input
-                      value={systemNameNb}
-                      onChange={(e) => setSystemNameNb(e.target.value)}
-                      placeholder="Norsk bokmål"
-                      className="h-12 rounded-lg border-border focus:border-primary bg-white"
-                    />
-                    <Input
-                      value={systemNameNn}
-                      onChange={(e) => setSystemNameNn(e.target.value)}
-                      placeholder="Nynorsk (valgfritt)"
-                      className="h-12 rounded-lg border-border focus:border-primary bg-white"
-                    />
-                    <Input
-                      value={systemNameEn}
-                      onChange={(e) => setSystemNameEn(e.target.value)}
-                      placeholder="English (valgfritt)"
-                      className="h-12 rounded-lg border-border focus:border-primary bg-white"
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <Label className="font-semibold text-foreground mb-3 block">Beskrivelse *</Label>
-                  <div className="space-y-3">
-                    <Input
-                      value={systemDescNb}
-                      onChange={(e) => setSystemDescNb(e.target.value)}
-                      placeholder="Norsk bokmål"
-                      className="h-12 rounded-lg border-border focus:border-primary bg-white"
-                    />
-                    <Input
-                      value={systemDescNn}
-                      onChange={(e) => setSystemDescNn(e.target.value)}
-                      placeholder="Nynorsk (valgfritt)"
-                      className="h-12 rounded-lg border-border focus:border-primary bg-white"
-                    />
-                    <Input
-                      value={systemDescEn}
-                      onChange={(e) => setSystemDescEn(e.target.value)}
-                      placeholder="English (valgfritt)"
-                      className="h-12 rounded-lg border-border focus:border-primary bg-white"
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <Label className="font-semibold text-foreground mb-3 block">Tilgangspakker *</Label>
-                  <div className="relative" ref={systemAccessPackageDropdownRef}>
-                    <Input
-                      placeholder="Søk etter tilgangspakker..."
-                      value={systemAccessPackageSearch}
-                      onChange={(e) => setSystemAccessPackageSearch(e.target.value)}
-                      onClick={() => setShowSystemAccessPackageDropdown(true)}
-                      onFocus={() => setShowSystemAccessPackageDropdown(true)}
-                      className="h-12 rounded-lg border-border focus:border-primary bg-white"
-                    />
-                    {showSystemAccessPackageDropdown && (
-                      <div className="absolute z-50 w-full mt-2 bg-card border border-border rounded-xl shadow-lg max-h-64 overflow-y-auto">
-                        {filteredSystemAccessPackages.map((pkg) => (
-                          <button
-                            key={pkg.urn}
-                            className="w-full px-6 py-4 text-left hover:bg-muted text-sm transition-colors"
-                            onMouseDown={(e) => {
-                              e.preventDefault()
-                              if (!systemAccessPackages.find((p) => p.urn === pkg.urn)) {
-                                setSystemAccessPackages((prev) => [...prev, pkg])
-                              }
-                              setSystemAccessPackageSearch("")
-                              setShowSystemAccessPackageDropdown(false)
-                            }}
-                          >
-                            {pkg.displayName}
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                  <div className="flex flex-wrap gap-2 mt-3">
-                    {systemAccessPackages.map((pkg) => (
-                      <Badge
-                        key={pkg.urn}
-                        className="flex items-center gap-2 px-3 py-1.5 text-sm bg-primary/10 text-primary border-primary/20 rounded-full"
-                      >
-                        {pkg.displayName}
-                        <button
-                          className="chip-remove-button ml-1 hover:bg-destructive/20 rounded-full p-1 transition-colors"
-                          onClick={() => {
-                            setSystemAccessPackages((prev) => prev.filter((p) => p.urn !== pkg.urn))
-                          }}
-                        >
-                          <XCircle className="h-3 w-3" />
-                        </button>
-                      </Badge>
-                    ))}
-                  </div>
-                </div>
-
-                <div>
-                  <Label className="font-semibold text-foreground mb-3 block">Enkeltrettigheter (valgfritt)</Label>
-                  <div className="relative" ref={systemRightDropdownRef}>
-                    <Input
-                      placeholder="Søk etter enkeltrettigheter..."
-                      value={systemRightSearch}
-                      onChange={(e) => setSystemRightSearch(e.target.value)}
-                      onClick={() => setShowSystemRightDropdown(true)}
-                      onFocus={() => setShowSystemRightDropdown(true)}
-                      className="h-12 rounded-lg border-border focus:border-primary bg-white"
-                    />
-                    {showSystemRightDropdown && (
-                      <div className="absolute z-50 w-full mt-2 bg-card border border-border rounded-xl shadow-lg max-h-64 overflow-y-auto">
-                        {filteredSystemIndividualRights.map((right) => (
-                          <button
-                            key={right.name}
-                            className="w-full px-6 py-4 text-left hover:bg-muted text-sm transition-colors"
-                            onMouseDown={(e) => {
-                              e.preventDefault()
-                              if (!systemRights.find((r) => r.name === right.name)) {
-                                setSystemRights((prev) => [...prev, right])
-                              }
-                              setSystemRightSearch("")
-                              setShowSystemRightDropdown(false)
-                            }}
-                          >
-                            {right.displayName}
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                  <div className="flex flex-wrap gap-2 mt-3">
-                    {systemRights.map((right) => (
-                      <Badge
-                        key={right.name}
-                        className="flex items-center gap-2 px-3 py-1.5 text-sm bg-primary/10 text-primary border-primary/20 rounded-full"
-                      >
-                        {right.displayName}
-                        <button
-                          className="chip-remove-button ml-1 hover:bg-destructive/20 rounded-full p-1 transition-colors"
-                          onClick={() => {
-                            setSystemRights((prev) => prev.filter((r) => r.name !== right.name))
-                          }}
-                        >
-                          <XCircle className="h-3 w-3" />
-                        </button>
-                      </Badge>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div>
-                    <Label htmlFor="systemClientId" className="font-semibold text-foreground mb-2 block">
-                      Client ID (valgfritt)
-                    </Label>
-                    <Input
-                      id="systemClientId"
-                      value={systemClientId}
-                      onChange={(e) => setSystemClientId(e.target.value)}
-                      placeholder="client-id-123"
-                      className="h-12 rounded-lg border-border focus:border-primary bg-white"
-                    />
-                  </div>
-
-                  <div className="flex items-center space-x-3 pt-8">
-                    <input
-                      type="checkbox"
-                      id="systemIsVisible"
-                      checked={systemIsVisible}
-                      onChange={(e) => setSystemIsVisible(e.target.checked)}
-                      className="h-5 w-5 rounded border-border text-primary focus:ring-primary"
-                    />
-                    <Label htmlFor="systemIsVisible" className="font-semibold text-foreground cursor-pointer">
-                      Synlig system (isVisible)
-                    </Label>
-                  </div>
-                </div>
-
-                <Button
-                  onClick={handleCreateSystem}
-                  disabled={isCreatingSystem}
-                  className="w-full h-14 font-bold rounded-xl shadow-md hover:shadow-lg transition-all hover:scale-[1.02] bg-primary hover:brightness-105"
-                >
-                  {isCreatingSystem ? "Oppretter..." : "Opprett system"}
-                </Button>
-              </div>
+                </CardContent>
+              </Card>
             )}
 
             {useCustomSystem && customSystem && (
@@ -1860,7 +1983,6 @@ export default function SystembrukerForm() {
               </p>
             </div>
 
-            {/* Access Packages */}
             <div>
               <Label className="text-lg font-semibold mb-4 block text-foreground">Tilgangspakker</Label>
               {useCustomSystem && customSystem && (
@@ -1990,23 +2112,10 @@ export default function SystembrukerForm() {
           </CardContent>
         </Card>
 
-        <Card className="shadow-lg rounded-2xl border-border animate-fade-in-up">
-          <CardHeader className="pb-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs text-muted-foreground uppercase tracking-wide mb-1">Forhåndsvisning</p>
-                <CardTitle className="text-xl font-semibold text-foreground">Forhåndsvisning av request</CardTitle>
-              </div>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => navigator.clipboard.writeText(JSON.stringify(generateJsonPayload(), null, 2))}
-                className="rounded-lg hover:bg-muted transition-colors"
-              >
-                <Copy className="h-4 w-4 mr-2" />
-                Kopier
-              </Button>
-            </div>
+        <Card className="shadow-lg rounded-2xl border-border animate-fade-in-up mt-8">
+          <CardHeader>
+            <CardTitle className="text-xl font-semibold text-foreground">Forhåndsvisning av request</CardTitle>
+            <p className="text-xs text-muted-foreground uppercase tracking-wide mb-1">Forhåndsvisning</p>
           </CardHeader>
           <CardContent className="pt-2">
             <div className="relative bg-code-bg rounded-xl p-6 overflow-hidden">
@@ -2015,10 +2124,20 @@ export default function SystembrukerForm() {
               </pre>
             </div>
           </CardContent>
+          <CardFooter className="flex justify-end px-8 pb-6">
+            <Button
+              variant="outline"
+              onClick={() => navigator.clipboard.writeText(JSON.stringify(generateJsonPayload(), null, 2))}
+              className="rounded-lg hover:bg-muted transition-colors"
+            >
+              <Copy className="h-4 w-4 mr-2" />
+              Kopier JSON
+            </Button>
+          </CardFooter>
         </Card>
 
         {creationHistory.length > 0 && (
-          <Card className="shadow-lg rounded-2xl border-border animate-fade-in-up">
+          <Card className="shadow-lg rounded-2xl border-border animate-fade-in-up mt-8">
             <CardHeader>
               <CardTitle className="text-xl font-semibold text-foreground">Siste opprettede forespørsler</CardTitle>
             </CardHeader>
@@ -2106,6 +2225,7 @@ export default function SystembrukerForm() {
                             onClick={() => window.open(item.confirmUrl, "_blank")}
                             className="rounded-lg transition-all hover:scale-105 hover:shadow-md"
                           >
+                            <ExternalLink className="h-4 w-4 mr-2" />
                             Åpne godkjenningslenke
                           </Button>
                         )}
@@ -2123,7 +2243,7 @@ export default function SystembrukerForm() {
             <Card className="max-w-4xl w-full max-h-[90vh] overflow-y-auto shadow-2xl rounded-2xl animate-fade-in-up">
               <CardHeader className="bg-destructive/10 border-b border-destructive/20">
                 <CardTitle className="text-destructive flex items-center gap-3 text-xl font-semibold">
-                  <X className="h-6 w-6" />
+                  <AlertCircle className="h-6 w-6" />
                   {error.title}
                 </CardTitle>
               </CardHeader>
@@ -2164,6 +2284,7 @@ export default function SystembrukerForm() {
             <Card className="max-w-2xl w-full max-h-[90vh] overflow-y-auto shadow-2xl rounded-2xl animate-fade-in-up">
               <CardHeader className="bg-primary/10 border-b border-primary/20">
                 <CardTitle className="text-primary flex items-center gap-3 text-xl font-semibold">
+                  <CheckCircle2 className="h-6 w-6" />
                   Forespørsel opprettet
                 </CardTitle>
               </CardHeader>
@@ -2230,6 +2351,7 @@ export default function SystembrukerForm() {
             <Card className="max-w-4xl w-full max-h-[90vh] overflow-y-auto shadow-2xl rounded-2xl animate-fade-in-up">
               <CardHeader className="bg-primary/10 border-b border-primary/20">
                 <CardTitle className="text-primary flex items-center gap-3 text-xl font-semibold">
+                  <Loader2 className="h-6 w-6 animate-spin" />
                   Endre Systembruker
                 </CardTitle>
               </CardHeader>
@@ -2444,6 +2566,7 @@ export default function SystembrukerForm() {
             <Card className="max-w-2xl w-full max-h-[90vh] overflow-y-auto shadow-2xl rounded-2xl animate-fade-in-up">
               <CardHeader className="bg-primary/10 border-b border-primary/20">
                 <CardTitle className="text-primary flex items-center gap-3 text-xl font-semibold">
+                  <CheckCircle2 className="h-6 w-6" />
                   Endringsforespørsel sendt
                 </CardTitle>
               </CardHeader>
@@ -2479,8 +2602,6 @@ export default function SystembrukerForm() {
             </Card>
           </div>
         )}
-
-        {/* ... existing code for other modals ... */}
       </div>
     </div>
   )

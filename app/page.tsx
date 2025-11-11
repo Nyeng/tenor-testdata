@@ -54,6 +54,7 @@ interface TestDataResponse {
     navn: string
     organisasjonsnummer: string
   }>
+  warning?: string // Added warning field
 }
 
 interface DagligLederResponse {
@@ -331,6 +332,11 @@ export default function SystembrukerForm() {
   } | null>(null)
 
   useEffect(() => {
+    loadTestData()
+  }, [])
+
+  // FIX: Moved the useEffect hook containing handlePrefillTestData before its usage
+  useEffect(() => {
     const savedHistory = localStorage.getItem("systembruker-history")
     if (savedHistory) {
       try {
@@ -365,6 +371,12 @@ export default function SystembrukerForm() {
   const [showErrorModal, setShowErrorModal] = useState(false)
   // Define setErrorMessage
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
+
+  const [validationErrors, setValidationErrors] = useState<{
+    vendorOrgNo?: boolean
+    systemIdName?: boolean
+    systemNameNb?: boolean
+  }>({})
 
   const accessPackageDropdownRef = useRef<HTMLDivElement>(null)
   const individualRightDropdownRef = useRef<HTMLDivElement>(null)
@@ -426,8 +438,41 @@ export default function SystembrukerForm() {
   const [resources, setResources] = useState<Resource[]>([])
   const [isLoadingResources, setIsLoadingResources] = useState(false)
 
-  const [accessPackages, setAccessPackages] = useState<AccessPackage[]>([])
+  const [apiAccessPackages, setApiAccessPackages] = useState<AccessPackage[]>([])
   const [isLoadingAccessPackages, setIsLoadingAccessPackages] = useState(false)
+
+  const [isPrefilling, setIsPrefilling] = useState(false)
+
+  const [tenorUnavailable, setTenorUnavailable] = useState(false)
+
+  const handlePrefillTestData = async () => {
+    setIsPrefilling(true)
+    try {
+      const orgNo = await fetchRandomTenorOrg()
+      const vendorData = getRandomVendorData()
+
+      if (orgNo) {
+        setVendorOrgNo(orgNo)
+      }
+
+      setSystemIdName(vendorData.systemIdName)
+      setSystemNameNb(vendorData.leverandor)
+      setSystemNameEn(vendorData.leverandor)
+      setSystemNameNn(vendorData.leverandor)
+      setSystemDescNb(`Integrasjon for ${vendorData.leverandor}`)
+      setSystemDescEn(`Integration for ${vendorData.leverandor}`)
+      setSystemDescNn(`Integrasjon for ${vendorData.leverandor}`)
+      setPrefilledIntegrationTitle(vendorData.integrationTitle)
+      setIntegrationTitle(vendorData.integrationTitle)
+    } finally {
+      setIsPrefilling(false)
+    }
+  }
+
+  const handlePrefillIntegrationTitle = () => {
+    const vendorData = getRandomVendorData()
+    setIntegrationTitle(vendorData.integrationTitle)
+  }
 
   useEffect(() => {
     // to prevent validation errors from environment-specific resources
@@ -469,7 +514,7 @@ export default function SystembrukerForm() {
 
         if (!data.accessPackages || !Array.isArray(data.accessPackages)) {
           console.error("[v0] Invalid access packages response:", data)
-          setAccessPackages([])
+          setApiAccessPackages([])
           return
         }
 
@@ -480,10 +525,10 @@ export default function SystembrukerForm() {
         }))
 
         console.log("[v0] Access packages loaded:", transformedPackages.length)
-        setAccessPackages(transformedPackages)
+        setApiAccessPackages(transformedPackages)
       } catch (error) {
         console.error("[v0] Error fetching access packages:", error)
-        setAccessPackages([])
+        setApiAccessPackages([])
       } finally {
         setIsLoadingAccessPackages(false)
       }
@@ -492,80 +537,123 @@ export default function SystembrukerForm() {
     fetchAccessPackages()
   }, [selectedEnvironment])
 
-  useEffect(() => {
-    const loadTestData = async () => {
-      setLoading(true)
-      setIsLoadingOrgData(true)
-      try {
-        const testDataResults: { [key: string]: TestDataEntry[] } = {}
+  const loadTestData = async () => {
+    setLoading(true)
+    setIsLoadingOrgData(true)
+    setTenorUnavailable(false) // Reset error state
+    console.log("[v0] Loading test data...")
+    try {
+      const testDataResults: { [key: string]: TestDataEntry[] } = {}
+      let anyApiFailed = false
 
-        // Load role-based testdata
-        for (const role of ["forretningsfoerer", "revisor", "regnskapsfoerere"]) {
-          try {
-            const response = await fetch("/api/testdata", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ role, clientCount: 10 }),
-            })
-
-            if (response.ok) {
-              const data: TestDataResponse = await response.json()
-              testDataResults[role] = data.clients.map((client) => ({
-                organisasjonsnavn: client.navn,
-                organisasjonsnummer: client.organisasjonsnummer,
-                foedselsnummer: "", // Client organizations don't have Daglig leder data from this API
-              }))
-
-              // Add the API caller's organization with correct Daglig leder data
-              if (data.dagligLeder) {
-                testDataResults[role].unshift({
-                  organisasjonsnavn: data.dagligLeder.organisasjonsnavn || `${role} hovedorganisasjon`,
-                  organisasjonsnummer: data.dagligLeder.organisasjonsnummer,
-                  foedselsnummer: data.dagligLeder.foedselsnummer,
-                })
-              }
-            }
-          } catch (error) {
-            console.error(`Failed to load ${role} testdata:`, error)
-          }
-        }
-
-        // Load daglig leder data
+      // Load role-based testdata
+      for (const role of ["forretningsfoerer", "revisor", "regnskapsfoerere"]) {
         try {
-          const response = await fetch("/api/daglig-leder", {
+          console.log(`[v0] Fetching testdata for role: ${role}`)
+          const response = await fetch("/api/testdata", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ antall: 10 }),
+            body: JSON.stringify({ role, clientCount: 10 }),
           })
 
+          console.log(`[v0] Response status for ${role}: ${response.status}`)
+
           if (response.ok) {
-            const data: DagligLederResponse = await response.json()
-            testDataResults.dagligLeder = data.leaders.map((leader) => ({
-              organisasjonsnavn: leader.organisasjonsnavn,
-              organisasjonsnummer: leader.organisasjonsnummer,
-              foedselsnummer: leader.foedselsnummer,
+            const data: TestDataResponse = await response.json()
+            console.log(`[v0] Data received for ${role}:`, data)
+
+            if (data.warning) {
+              console.log(`[v0] Warning detected for ${role}:`, data.warning)
+              anyApiFailed = true
+            }
+
+            testDataResults[role] = data.clients.map((client) => ({
+              organisasjonsnavn: client.navn,
+              organisasjonsnummer: client.organisasjonsnummer,
+              foedselsnummer: "", // Client organizations don't have Daglig leder data from this API
             }))
+
+            // Add the API caller's organization with correct Daglig leder data
+            if (data.dagligLeder) {
+              testDataResults[role].unshift({
+                organisasjonsnavn: data.dagligLeder.organisasjonsnavn || `${role} hovedorganisasjon`,
+                organisasjonsnummer: data.dagligLeder.organisasjonsnummer,
+                foedselsnummer: data.dagligLeder.foedselsnummer,
+              })
+            }
+          } else {
+            console.log(`[v0] API failed for ${role} with status ${response.status}`)
+            anyApiFailed = true
           }
         } catch (error) {
-          console.error("Failed to load daglig leder testdata:", error)
+          console.error(`[v0] Failed to load ${role} testdata:`, error)
+          anyApiFailed = true
         }
-
-        setTestData(testDataResults)
-        setTimeout(() => {
-          setIsLoadingOrgData(false)
-        }, 800)
-      } catch (error) {
-        console.error("Failed to fetch test data:", error)
-        setIsLoadingOrgData(false)
-      } finally {
-        setLoading(false)
       }
+
+      // Load daglig leder data
+      try {
+        console.log("[v0] Fetching daglig leder data...")
+        const response = await fetch("/api/daglig-leder", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ antall: 10 }),
+        })
+
+        console.log(`[v0] Daglig leder response status: ${response.status}`)
+
+        if (response.ok) {
+          const data: DagligLederResponse = await response.json()
+          console.log("[v0] Daglig leder data:", data)
+          if ((data as any).warning) {
+            console.log("[v0] Warning detected in daglig leder data:", (data as any).warning)
+            anyApiFailed = true
+          }
+          testDataResults.dagligLeder = data.leaders.map((leader) => ({
+            organisasjonsnavn: leader.organisasjonsnavn,
+            organisasjonsnummer: leader.organisasjonsnummer,
+            foedselsnummer: leader.foedselsnummer,
+          }))
+        } else {
+          console.log(`[v0] Daglig leder API failed with status ${response.status}`)
+          anyApiFailed = true
+        }
+      } catch (error) {
+        console.error("[v0] Failed to load daglig leder testdata:", error)
+        anyApiFailed = true
+      }
+
+      console.log(`[v0] anyApiFailed status: ${anyApiFailed}`)
+      if (anyApiFailed) {
+        console.log("[v0] Setting tenorUnavailable to true")
+        setTenorUnavailable(true)
+        // Don't set any test data when Tenor is unavailable
+        setTestData({})
+      } else {
+        setTestData(testDataResults)
+      }
+
+      setTimeout(() => {
+        setIsLoadingOrgData(false)
+      }, 800)
+    } catch (error) {
+      console.error("[v0] Failed to fetch test data:", error)
+      setTenorUnavailable(true)
+      setTestData({}) // Don't use mock data
+      setIsLoadingOrgData(false)
+    } finally {
+      setLoading(false)
     }
+  }
 
-    loadTestData()
-  }, [])
+  // Determine if the "Create New System" option should be shown
+  const useCreateNewSystem = useCustomSystem
 
-  // Removed duplicate useEffect for resources
+  useEffect(() => {
+    if (useCreateNewSystem && !vendorOrgNo && !systemIdName) {
+      handlePrefillTestData()
+    }
+  }, [useCreateNewSystem])
 
   const fetchRandomTenorOrg = async () => {
     try {
@@ -599,29 +687,6 @@ export default function SystembrukerForm() {
     }
   }
 
-  const handlePrefillTestData = async () => {
-    const orgNo = await fetchRandomTenorOrg()
-    const vendorData = getRandomVendorData()
-
-    if (orgNo) {
-      setVendorOrgNo(orgNo)
-    }
-    setSystemIdName(vendorData.systemIdName)
-    setSystemNameNb(vendorData.leverandor)
-    setSystemNameEn(vendorData.leverandor)
-    setSystemNameNn(vendorData.leverandor)
-    setSystemDescNb(`Integrasjon for ${vendorData.leverandor}`)
-    setSystemDescEn(`Integration for ${vendorData.leverandor}`)
-    setSystemDescNn(`Integrasjon for ${vendorData.leverandor}`)
-    setPrefilledIntegrationTitle(vendorData.integrationTitle)
-    setIntegrationTitle(vendorData.integrationTitle)
-  }
-
-  const handlePrefillIntegrationTitle = () => {
-    const vendorData = getRandomVendorData()
-    setIntegrationTitle(vendorData.integrationTitle)
-  }
-
   useEffect(() => {
     const fetchDagligLederForManualOrg = async () => {
       if (selectedRole === "manual" && manualOrgNr && /^\d{9}$/.test(manualOrgNr)) {
@@ -634,7 +699,7 @@ export default function SystembrukerForm() {
           const response = await fetch("/api/daglig-leder-by-org", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.JSON.stringify({ organisasjonsnummer: manualOrgNr }),
+            body: JSON.stringify({ organisasjonsnummer: manualOrgNr }),
           })
 
           if (response.ok) {
@@ -954,13 +1019,30 @@ export default function SystembrukerForm() {
   }
 
   const handleCreateSystem = async () => {
-    // Simplified validation message
-    if (!vendorOrgNo || !systemIdName || !systemNameNb) {
-      setErrorMessage("Vennligst fyll ut alle obligatoriske felt")
+    const errors: { vendorOrgNo?: boolean; systemIdName?: boolean; systemNameNb?: boolean } = {}
+    const missingFields = []
+
+    if (!vendorOrgNo) {
+      missingFields.push("Organisasjonsnummer (leverandør)")
+      errors.vendorOrgNo = true
+    }
+    if (!systemIdName) {
+      missingFields.push("System ID navn")
+      errors.systemIdName = true
+    }
+    if (!systemNameNb) {
+      missingFields.push("Navn (Bokmål)")
+      errors.systemNameNb = true
+    }
+
+    if (missingFields.length > 0) {
+      setValidationErrors(errors)
+      setErrorMessage(`Vennligst fyll ut følgende obligatoriske felt:\n• ${missingFields.join("\n• ")}`)
       setShowErrorModal(true)
       return
     }
 
+    setValidationErrors({})
     setIsCreatingSystem(true)
     setErrorMessage(null) // Clear previous error
 
@@ -1076,7 +1158,7 @@ export default function SystembrukerForm() {
     if (useCustomSystem && customSystem) {
       return customSystem.accessPackages
     }
-    return accessPackages
+    return apiAccessPackages
   }
 
   const getAvailableIndividualRights = (): IndividualRight[] => {
@@ -1274,7 +1356,7 @@ export default function SystembrukerForm() {
     if (!changeRequestItem?.accessPackages) return []
     return changeRequestItem.accessPackages
       .map((pkg: any) => {
-        const matched = accessPackages.find((ap) => ap.urn === pkg.urn)
+        const matched = apiAccessPackages.find((ap) => ap.urn === pkg.urn)
         return matched ? matched : null
       })
       .filter((pkg): pkg is AccessPackage => pkg !== null)
@@ -1297,7 +1379,7 @@ export default function SystembrukerForm() {
       .filter((right): right is IndividualRight => right !== null)
   }
 
-  const filteredChangeRequestAccessPackages = accessPackages.filter(
+  const filteredChangeRequestAccessPackages = apiAccessPackages.filter(
     (pkg) =>
       pkg.displayName.toLowerCase().includes(changeRequestAccessPackageSearch.toLowerCase()) &&
       !getCurrentAccessPackages().find((current) => current.urn === pkg.urn) &&
@@ -1318,12 +1400,9 @@ export default function SystembrukerForm() {
       !requiredRights.find((req) => req.name === right.name),
   )
 
-  const filteredSystemAccessPackages = accessPackages.filter((pkg) =>
+  const filteredSystemAccessPackages = apiAccessPackages.filter((pkg) =>
     pkg.displayName.toLowerCase().includes(systemAccessPackageSearch.toLowerCase()),
   )
-
-  // Determine if the "Create New System" option should be shown
-  const useCreateNewSystem = useCustomSystem
 
   // Filter resources based on search input and available rights
   const filteredSystemResources = resources.filter(
@@ -1364,6 +1443,32 @@ export default function SystembrukerForm() {
           </CardHeader>
 
           <CardContent className="p-8 space-y-8">
+            {tenorUnavailable && (
+              <div className="rounded-lg border border-destructive/50 bg-destructive/10 p-4">
+                <div className="flex gap-3">
+                  <svg
+                    className="h-5 w-5 text-destructive flex-shrink-0 mt-0.5"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+                    />
+                  </svg>
+                  <div className="flex-1">
+                    <p className="font-medium text-destructive">Tenor-søk ser ut til å være utilgjengelig</p>
+                    <p className="text-sm text-destructive/90 mt-1">
+                      Du må velge &quot;bruk eget organisasjonsnummer&quot; for å opprette Systembruker(e)
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+
             <div>
               <Label className="text-lg font-semibold mb-4 block text-foreground">Systemvalg</Label>
               <div className="space-y-3">
@@ -1372,7 +1477,7 @@ export default function SystembrukerForm() {
                     type="radio"
                     id="useExistingSystem"
                     name="systemSelection"
-                    checked={!useCreateNewSystem}
+                    checked={!useCustomSystem}
                     onChange={() => {
                       setUseCustomSystem(false)
                       setCustomSystem(null)
@@ -1391,7 +1496,7 @@ export default function SystembrukerForm() {
                     type="radio"
                     id="useCustomSystem"
                     name="systemSelection"
-                    checked={useCreateNewSystem}
+                    checked={useCustomSystem}
                     onChange={() => setUseCustomSystem(true)}
                     className="h-4 w-4 text-primary focus:ring-primary cursor-pointer"
                   />
@@ -1403,7 +1508,7 @@ export default function SystembrukerForm() {
             </div>
 
             {/* System Creation Form - Expanded inline when useCreateNewSystem is true */}
-            {useCreateNewSystem && (
+            {useCustomSystem && (
               <Card className="border-2 border-primary/20 shadow-xl bg-card/95 backdrop-blur">
                 <CardHeader className="border-b border-border/50 bg-muted/30">
                   <CardTitle className="text-2xl font-bold text-foreground">
@@ -1418,48 +1523,71 @@ export default function SystembrukerForm() {
                       variant="outline"
                       size="sm"
                       className="rounded-lg flex items-center gap-2 bg-transparent"
+                      disabled={isPrefilling}
                     >
                       <Sparkles className="h-4 w-4" />
-                      Preutfyll med testdata
+                      {isPrefilling ? "Laster..." : "Legg til nye testdata"}
                     </Button>
                   </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <div>
-                      <Label htmlFor="countryCode" className="font-semibold text-foreground mb-2 block">
-                        Landskode *
-                      </Label>
-                      <Input
-                        id="countryCode"
-                        value={countryCode}
-                        onChange={(e) => setCountryCode(e.target.value)}
-                        placeholder="0192"
-                        className="h-12 rounded-lg border-border focus:border-primary bg-white"
-                      />
-                    </div>
+                  {/* Moved Input fields for vendorOrgNo and systemIdName to here */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div>
                       <Label htmlFor="vendorOrgNo" className="font-semibold text-foreground mb-2 block">
                         Organisasjonsnummer (leverandør) *
                       </Label>
-                      <Input
-                        id="vendorOrgNo"
-                        value={vendorOrgNo}
-                        onChange={(e) => setVendorOrgNo(e.target.value)}
-                        placeholder="310547891"
-                        className="h-12 rounded-lg border-border focus:border-primary bg-white"
-                      />
+                      {isPrefilling ? (
+                        <div className="h-12 rounded-lg bg-muted animate-pulse" />
+                      ) : (
+                        <>
+                          <Input
+                            id="vendorOrgNo"
+                            value={vendorOrgNo}
+                            onChange={(e) => {
+                              setVendorOrgNo(e.target.value)
+                              if (validationErrors.vendorOrgNo) {
+                                setValidationErrors((prev) => ({ ...prev, vendorOrgNo: false }))
+                              }
+                            }}
+                            placeholder="123456789"
+                            className={`h-12 rounded-lg border-border focus:border-primary bg-white ${
+                              validationErrors.vendorOrgNo ? "border-red-500 border-2" : ""
+                            }`}
+                          />
+                          {validationErrors.vendorOrgNo && (
+                            <p className="text-red-500 text-sm mt-1">Dette feltet er obligatorisk</p>
+                          )}
+                        </>
+                      )}
                     </div>
+
                     <div>
                       <Label htmlFor="systemIdName" className="font-semibold text-foreground mb-2 block">
                         System ID navn *
                       </Label>
-                      <Input
-                        id="systemIdName"
-                        value={systemIdName}
-                        onChange={(e) => setSystemIdName(e.target.value)}
-                        placeholder="SystemMedApp"
-                        className="h-12 rounded-lg border-border focus:border-primary bg-white"
-                      />
+                      {isPrefilling ? (
+                        <div className="h-12 rounded-lg bg-muted animate-pulse" />
+                      ) : (
+                        <>
+                          <Input
+                            id="systemIdName"
+                            value={systemIdName}
+                            onChange={(e) => {
+                              setSystemIdName(e.target.value)
+                              if (validationErrors.systemIdName) {
+                                setValidationErrors((prev) => ({ ...prev, systemIdName: false }))
+                              }
+                            }}
+                            placeholder="MinApp"
+                            className={`h-12 rounded-lg border-border focus:border-primary bg-white ${
+                              validationErrors.systemIdName ? "border-red-500 border-2" : ""
+                            }`}
+                          />
+                          {validationErrors.systemIdName && (
+                            <p className="text-red-500 text-sm mt-1">Dette feltet er obligatorisk</p>
+                          )}
+                        </>
+                      )}
                     </div>
                   </div>
 
@@ -1483,53 +1611,125 @@ export default function SystembrukerForm() {
                   <div>
                     <Label className="font-semibold text-foreground mb-3 block">Navn *</Label>
                     <div className="space-y-3">
-                      <Input
-                        value={systemNameNb}
-                        onChange={(e) => setSystemNameNb(e.target.value)}
-                        placeholder="Norsk bokmål"
-                        className="h-12 rounded-lg border-border focus:border-primary bg-white"
-                      />
-                      <Input
-                        value={systemNameNn}
-                        onChange={(e) => setSystemNameNn(e.target.value)}
-                        placeholder="Nynorsk (valgfritt)"
-                        className="h-12 rounded-lg border-border focus:border-primary bg-white"
-                      />
-                      <Input
-                        value={systemNameEn}
-                        onChange={(e) => setSystemNameEn(e.target.value)}
-                        placeholder="English (valgfritt)"
-                        className="h-12 rounded-lg border-border focus:border-primary bg-white"
-                      />
+                      <div>
+                        <Label htmlFor="systemNameNb" className="text-sm text-muted-foreground mb-1 block">
+                          Bokmål *
+                        </Label>
+                        {isPrefilling ? (
+                          <div className="h-12 rounded-lg bg-muted animate-pulse" />
+                        ) : (
+                          <>
+                            <Input
+                              id="systemNameNb"
+                              value={systemNameNb}
+                              onChange={(e) => {
+                                setSystemNameNb(e.target.value)
+                                if (validationErrors.systemNameNb) {
+                                  setValidationErrors((prev) => ({ ...prev, systemNameNb: false }))
+                                }
+                              }}
+                              placeholder="Mitt System"
+                              className={`h-12 rounded-lg border-border focus:border-primary bg-white ${
+                                validationErrors.systemNameNb ? "border-red-500 border-2" : ""
+                              }`}
+                            />
+                            {validationErrors.systemNameNb && (
+                              <p className="text-red-500 text-sm mt-1">Dette feltet er obligatorisk</p>
+                            )}
+                          </>
+                        )}
+                      </div>
+                      <div>
+                        <Label htmlFor="systemNameEn" className="text-sm text-muted-foreground mb-1 block">
+                          Engelsk
+                        </Label>
+                        {isPrefilling ? (
+                          <div className="h-12 rounded-lg bg-muted animate-pulse" />
+                        ) : (
+                          <Input
+                            id="systemNameEn"
+                            value={systemNameEn}
+                            onChange={(e) => setSystemNameEn(e.target.value)}
+                            placeholder="My System"
+                            className="h-12 rounded-lg border-border focus:border-primary bg-white"
+                          />
+                        )}
+                      </div>
+                      <div>
+                        <Label htmlFor="systemNameNn" className="text-sm text-muted-foreground mb-1 block">
+                          Nynorsk
+                        </Label>
+                        {isPrefilling ? (
+                          <div className="h-12 rounded-lg bg-muted animate-pulse" />
+                        ) : (
+                          <Input
+                            id="systemNameNn"
+                            value={systemNameNn}
+                            onChange={(e) => setSystemNameNn(e.target.value)}
+                            placeholder="Mitt System"
+                            className="h-12 rounded-lg border-border focus:border-primary bg-white"
+                          />
+                        )}
+                      </div>
                     </div>
                   </div>
 
                   <div>
-                    <Label className="font-semibold text-foreground mb-3 block">Beskrivelse *</Label>
+                    <Label className="font-semibold text-foreground mb-3 block">Beskrivelse</Label>
                     <div className="space-y-3">
-                      <Input
-                        value={systemDescNb}
-                        onChange={(e) => setSystemDescNb(e.target.value)}
-                        placeholder="Norsk bokmål"
-                        className="h-12 rounded-lg border-border focus:border-primary bg-white"
-                      />
-                      <Input
-                        value={systemDescNn}
-                        onChange={(e) => setSystemDescNn(e.target.value)}
-                        placeholder="Nynorsk (valgfritt)"
-                        className="h-12 rounded-lg border-border focus:border-primary bg-white"
-                      />
-                      <Input
-                        value={systemDescEn}
-                        onChange={(e) => setSystemDescEn(e.target.value)}
-                        placeholder="English (valgfritt)"
-                        className="h-12 rounded-lg border-border focus:border-primary bg-white"
-                      />
+                      <div>
+                        <Label htmlFor="systemDescNb" className="text-sm text-muted-foreground mb-1 block">
+                          Bokmål
+                        </Label>
+                        {isPrefilling ? (
+                          <div className="h-12 rounded-lg bg-muted animate-pulse" />
+                        ) : (
+                          <Input
+                            id="systemDescNb"
+                            value={systemDescNb}
+                            onChange={(e) => setSystemDescNb(e.target.value)}
+                            placeholder="Beskrivelse av systemet"
+                            className="h-12 rounded-lg border-border focus:border-primary bg-white"
+                          />
+                        )}
+                      </div>
+                      <div>
+                        <Label htmlFor="systemDescEn" className="text-sm text-muted-foreground mb-1 block">
+                          Engelsk
+                        </Label>
+                        {isPrefilling ? (
+                          <div className="h-12 rounded-lg bg-muted animate-pulse" />
+                        ) : (
+                          <Input
+                            id="systemDescEn"
+                            value={systemDescEn}
+                            onChange={(e) => setSystemDescEn(e.target.value)}
+                            placeholder="System description"
+                            className="h-12 rounded-lg border-border focus:border-primary bg-white"
+                          />
+                        )}
+                      </div>
+                      <div>
+                        <Label htmlFor="systemDescNn" className="text-sm text-muted-foreground mb-1 block">
+                          Nynorsk
+                        </Label>
+                        {isPrefilling ? (
+                          <div className="h-12 rounded-lg bg-muted animate-pulse" />
+                        ) : (
+                          <Input
+                            id="systemDescNn"
+                            value={systemDescNn}
+                            onChange={(e) => setSystemDescNn(e.target.value)}
+                            placeholder="Beskrivelse av systemet"
+                            className="h-12 rounded-lg border-border focus:border-primary bg-white"
+                          />
+                        )}
+                      </div>
                     </div>
                   </div>
 
                   <div>
-                    <Label className="font-semibold text-foreground mb-3 block">Tilgangspakker *</Label>
+                    <Label className="font-semibold text-foreground mb-3 block">Tilgangspakker</Label>
                     <div className="relative" ref={systemAccessPackageDropdownRef}>
                       <Input
                         placeholder="Søk etter tilgangspakker..."
@@ -1544,7 +1744,7 @@ export default function SystembrukerForm() {
                           {filteredSystemAccessPackages.map((pkg) => (
                             <button
                               key={pkg.urn}
-                              className="w-full px-6 py-4 text-left hover:bg-muted text-sm transition-colors"
+                              className="w-full px-6 py-4 text-left hover:bg-muted transition-colors"
                               onMouseDown={(e) => {
                                 e.preventDefault()
                                 if (!systemAccessPackages.find((p) => p.urn === pkg.urn)) {
@@ -1582,52 +1782,86 @@ export default function SystembrukerForm() {
 
                   {/* Individual Rights */}
                   <div>
-                    <Label className="font-semibold text-foreground mb-3 block">Enkeltrettigheter (valgfritt)</Label>
+                    <Label className="font-semibold text-foreground mb-3 block">Enkeltrettigheter</Label>
                     {isLoadingResources && <p className="text-sm text-muted-foreground mb-3">Laster ressurser...</p>}
-                    <div className="relative" ref={systemRightDropdownRef}>
-                      <Input
-                        placeholder="Søk etter enkeltrettigheter fra ressursregisteret..."
-                        value={systemRightSearch}
-                        onChange={(e) => setSystemRightSearch(e.target.value)}
-                        onClick={() => setShowSystemRightDropdown(true)}
-                        onFocus={() => setShowSystemRightDropdown(true)}
-                        className="h-12 rounded-lg border-border focus:border-primary bg-white"
-                        disabled={isLoadingResources}
-                      />
-                      {showSystemRightDropdown && !isLoadingResources && (
-                        <div className="absolute z-50 w-full mt-2 bg-card border border-border rounded-xl shadow-lg max-h-64 overflow-y-auto">
-                          {filteredSystemResources.length > 0 ? (
-                            filteredSystemResources.map((resource) => (
-                              <button
-                                key={resource.identifier}
-                                className="w-full px-6 py-4 text-left hover:bg-muted transition-colors border-b border-border/50 last:border-0"
-                                onMouseDown={(e) => {
-                                  e.preventDefault()
-                                  if (!systemRights.find((r) => r.name === resource.identifier)) {
-                                    setSystemRights((prev) => [
-                                      ...prev,
-                                      { name: resource.identifier, displayName: resource.title },
-                                    ])
-                                  }
-                                  setSystemRightSearch("")
-                                  setShowSystemRightDropdown(false)
-                                }}
-                              >
-                                <div className="font-medium text-sm text-foreground">{resource.title}</div>
-                                <div className="text-xs text-muted-foreground mt-1">{resource.identifier}</div>
-                                {resource.description && (
-                                  <div className="text-xs text-muted-foreground mt-1 line-clamp-2">
-                                    {resource.description}
-                                  </div>
-                                )}
-                                <div className="text-xs text-primary mt-1">{resource.resourceType}</div>
-                              </button>
-                            ))
-                          ) : (
-                            <div className="px-6 py-4 text-sm text-muted-foreground">Ingen ressurser funnet</div>
-                          )}
-                        </div>
-                      )}
+                    <div className="flex gap-2">
+                      <div className="relative flex-1" ref={systemRightDropdownRef}>
+                        <Input
+                          placeholder="Søk etter enkeltrettigheter fra ressursregisteret..."
+                          value={systemRightSearch}
+                          onChange={(e) => setSystemRightSearch(e.target.value)}
+                          onClick={() => setShowSystemRightDropdown(true)}
+                          onFocus={() => setShowSystemRightDropdown(true)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter" && systemRightSearch.trim()) {
+                              e.preventDefault()
+                              if (!systemRights.find((r) => r.name === systemRightSearch.trim())) {
+                                setSystemRights((prev) => [
+                                  ...prev,
+                                  { name: systemRightSearch.trim(), displayName: systemRightSearch.trim() },
+                                ])
+                              }
+                              setSystemRightSearch("")
+                              setShowSystemRightDropdown(false)
+                            }
+                          }}
+                          className="h-12 rounded-lg border-border focus:border-primary bg-white"
+                          disabled={isLoadingResources}
+                        />
+                        {showSystemRightDropdown && !isLoadingResources && (
+                          <div className="absolute z-50 w-full mt-2 bg-card border border-border rounded-xl shadow-lg max-h-64 overflow-y-auto">
+                            {filteredSystemResources.length > 0 ? (
+                              filteredSystemResources.map((resource) => (
+                                <button
+                                  key={resource.identifier}
+                                  className="w-full px-6 py-4 text-left hover:bg-muted transition-colors border-b border-border/50 last:border-0"
+                                  onMouseDown={(e) => {
+                                    e.preventDefault()
+                                    if (!systemRights.find((r) => r.name === resource.identifier)) {
+                                      setSystemRights((prev) => [
+                                        ...prev,
+                                        { name: resource.identifier, displayName: resource.title },
+                                      ])
+                                    }
+                                    setSystemRightSearch("")
+                                    setShowSystemRightDropdown(false)
+                                  }}
+                                >
+                                  <div className="font-medium text-sm text-foreground">{resource.title}</div>
+                                  <div className="text-xs text-muted-foreground mt-1">{resource.identifier}</div>
+                                  {resource.description && (
+                                    <div className="text-xs text-muted-foreground mt-1 line-clamp-2">
+                                      {resource.description}
+                                    </div>
+                                  )}
+                                  <div className="text-xs text-primary mt-1">{resource.resourceType}</div>
+                                </button>
+                              ))
+                            ) : (
+                              <div className="px-6 py-4 text-sm text-muted-foreground">
+                                {systemRightSearch.trim()
+                                  ? "Ingen ressurser funnet. Skriv inn ressurs-ID og klikk 'Legg til' for å legge til manuelt."
+                                  : "Ingen ressurser funnet"}
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                      <Button
+                        type="button"
+                        onClick={() => {
+                          const trimmedSearch = systemRightSearch.trim()
+                          if (trimmedSearch && !systemRights.find((r) => r.name === trimmedSearch)) {
+                            setSystemRights((prev) => [...prev, { name: trimmedSearch, displayName: trimmedSearch }])
+                            setSystemRightSearch("")
+                            setShowSystemRightDropdown(false)
+                          }
+                        }}
+                        disabled={!systemRightSearch.trim() || isLoadingResources}
+                        className="h-12 px-6 whitespace-nowrap"
+                      >
+                        Legg til
+                      </Button>
                     </div>
                     <div className="flex flex-wrap gap-2 mt-3">
                       {systemRights.map((right) => (
@@ -1652,15 +1886,19 @@ export default function SystembrukerForm() {
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div>
                       <Label htmlFor="systemClientId" className="font-semibold text-foreground mb-2 block">
-                        Client ID (valgfritt)
+                        Client ID
                       </Label>
-                      <Input
-                        id="systemClientId"
-                        value={systemClientId}
-                        onChange={(e) => setSystemClientId(e.target.value)}
-                        placeholder="client-id-123"
-                        className="h-12 rounded-lg border-border focus:border-primary bg-white"
-                      />
+                      {isPrefilling ? (
+                        <div className="h-12 rounded-lg bg-muted animate-pulse" />
+                      ) : (
+                        <Input
+                          id="systemClientId"
+                          value={systemClientId}
+                          onChange={(e) => setSystemClientId(e.target.value)}
+                          placeholder="client-id-123"
+                          className="h-12 rounded-lg border-border focus:border-primary bg-white"
+                        />
+                      )}
                     </div>
 
                     <div className="flex items-center space-x-3 pt-8">
@@ -2104,8 +2342,8 @@ export default function SystembrukerForm() {
 
             <Button
               onClick={handleCreateSystembruker}
-              disabled={isCreating}
-              className="w-full h-16 text-lg font-bold rounded-xl shadow-md hover:shadow-lg transition-all hover:scale-[1.02] bg-primary hover:brightness-105"
+              disabled={isCreating || (tenorUnavailable && selectedRole !== "manual" && systembrukerType === "agent")}
+              className="w-full h-16 text-lg font-bold rounded-xl shadow-md hover:shadow-lg transition-all hover:scale-[1.02] bg-primary hover:brightness-105 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {isCreating ? "Oppretter..." : "Opprett Systembruker-forespørsel"}
             </Button>
@@ -2174,7 +2412,7 @@ export default function SystembrukerForm() {
                         <span className="font-semibold text-foreground">Tilgangspakker:</span>
                         <div className="flex flex-wrap gap-2 mt-2">
                           {item.accessPackages.map((pkg: any, pkgIndex: number) => {
-                            const matchedPkg = accessPackages.find((ap) => ap.urn === pkg.urn)
+                            const matchedPkg = apiAccessPackages.find((ap) => ap.urn === pkg.urn)
                             return (
                               <Badge
                                 key={pkgIndex}

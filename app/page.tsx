@@ -332,6 +332,17 @@ export default function SystembrukerForm() {
   } | null>(null)
 
   useEffect(() => {
+    const savedEnvironment = localStorage.getItem("selectedEnvironment")
+    if (savedEnvironment && ["TT02", "AT22", "AT23", "AT24"].includes(savedEnvironment)) {
+      setSelectedEnvironment(savedEnvironment)
+    }
+  }, [])
+
+  useEffect(() => {
+    localStorage.setItem("selectedEnvironment", selectedEnvironment)
+  }, [selectedEnvironment])
+
+  useEffect(() => {
     loadTestData()
   }, [])
 
@@ -544,10 +555,10 @@ export default function SystembrukerForm() {
     console.log("[v0] Loading test data...")
     try {
       const testDataResults: { [key: string]: TestDataEntry[] } = {}
-      let anyApiFailed = false
+      let criticalApiFailures = 0 // Track critical failures (503, network errors) instead of any warnings
+      const totalApis = 4 // 3 roles + daglig leder
 
-      // Load role-based testdata
-      for (const role of ["forretningsfoerer", "revisor", "regnskapsfoerere"]) {
+      const rolePromises = ["forretningsfoerer", "revisor", "regnskapsfoerere"].map(async (role) => {
         try {
           console.log(`[v0] Fetching testdata for role: ${role}`)
           const response = await fetch("/api/testdata", {
@@ -558,79 +569,123 @@ export default function SystembrukerForm() {
 
           console.log(`[v0] Response status for ${role}: ${response.status}`)
 
-          if (response.ok) {
-            const data: TestDataResponse = await response.json()
-            console.log(`[v0] Data received for ${role}:`, data)
-
-            if (data.warning) {
-              console.log(`[v0] Warning detected for ${role}:`, data.warning)
-              anyApiFailed = true
-            }
-
-            testDataResults[role] = data.clients.map((client) => ({
-              organisasjonsnavn: client.navn,
-              organisasjonsnummer: client.organisasjonsnummer,
-              foedselsnummer: "", // Client organizations don't have Daglig leder data from this API
-            }))
-
-            // Add the API caller's organization with correct Daglig leder data
-            if (data.dagligLeder) {
-              testDataResults[role].unshift({
-                organisasjonsnavn: data.dagligLeder.organisasjonsnavn || `${role} hovedorganisasjon`,
-                organisasjonsnummer: data.dagligLeder.organisasjonsnummer,
-                foedselsnummer: data.dagligLeder.foedselsnummer,
-              })
-            }
-          } else {
+          if (!response.ok) {
             console.log(`[v0] API failed for ${role} with status ${response.status}`)
-            anyApiFailed = true
+            if (response.status >= 500) {
+              return { role, criticalFailure: true, data: null }
+            }
+            return { role, criticalFailure: false, data: null }
           }
+
+          const data: TestDataResponse = await response.json()
+          console.log(`[v0] Data received for ${role}:`, JSON.stringify(data).slice(0, 200))
+
+          if (data.warning) {
+            console.log(`[v0] Warning detected for ${role}:`, data.warning)
+            // Check if it's a 503/service unavailable error in the warning
+            if (
+              data.warning.includes("503") ||
+              data.warning.includes("Service Unavailable") ||
+              data.warning.includes("unavailable")
+            ) {
+              return { role, criticalFailure: true, data: null }
+            }
+          }
+
+          const entries: TestDataEntry[] = data.clients.map((client) => ({
+            organisasjonsnavn: client.navn,
+            organisasjonsnummer: client.organisasjonsnummer,
+            foedselsnummer: "",
+          }))
+
+          if (data.dagligLeder) {
+            entries.unshift({
+              organisasjonsnavn: data.dagligLeder.organisasjonsnavn || `${role} hovedorganisasjon`,
+              organisasjonsnummer: data.dagligLeder.organisasjonsnummer,
+              foedselsnummer: data.dagligLeder.foedselsnummer,
+            })
+          }
+
+          return { role, criticalFailure: false, data: entries }
         } catch (error) {
           console.error(`[v0] Failed to load ${role} testdata:`, error)
-          anyApiFailed = true
+          return { role, criticalFailure: true, data: null }
         }
-      }
+      })
 
-      // Load daglig leder data
-      try {
-        console.log("[v0] Fetching daglig leder data...")
-        const response = await fetch("/api/daglig-leder", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ antall: 10 }),
-        })
+      const dagligLederPromise = (async () => {
+        try {
+          console.log("[v0] Fetching daglig leder data...")
+          const response = await fetch("/api/daglig-leder", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ antall: 10 }),
+          })
 
-        console.log(`[v0] Daglig leder response status: ${response.status}`)
+          console.log(`[v0] Daglig leder response status: ${response.status}`)
 
-        if (response.ok) {
+          if (!response.ok) {
+            console.log(`[v0] Daglig leder API failed with status ${response.status}`)
+            if (response.status >= 500) {
+              return { criticalFailure: true, data: null }
+            }
+            return { criticalFailure: false, data: null }
+          }
+
           const data: DagligLederResponse = await response.json()
-          console.log("[v0] Daglig leder data:", data)
+          console.log("[v0] Daglig leder data received:", JSON.stringify(data).slice(0, 200))
+
           if ((data as any).warning) {
             console.log("[v0] Warning detected in daglig leder data:", (data as any).warning)
-            anyApiFailed = true
+            if ((data as any).warning.includes("503") || (data as any).warning.includes("Service Unavailable")) {
+              return { criticalFailure: true, data: null }
+            }
           }
-          testDataResults.dagligLeder = data.leaders.map((leader) => ({
+
+          const entries = data.leaders.map((leader) => ({
             organisasjonsnavn: leader.organisasjonsnavn,
             organisasjonsnummer: leader.organisasjonsnummer,
             foedselsnummer: leader.foedselsnummer,
           }))
-        } else {
-          console.log(`[v0] Daglig leder API failed with status ${response.status}`)
-          anyApiFailed = true
+
+          return { criticalFailure: false, data: entries }
+        } catch (error) {
+          console.error("[v0] Failed to load daglig leder testdata:", error)
+          return { criticalFailure: true, data: null }
         }
-      } catch (error) {
-        console.error("[v0] Failed to load daglig leder testdata:", error)
-        anyApiFailed = true
+      })()
+
+      const [roleResults, dagligLederResult] = await Promise.all([Promise.all(rolePromises), dagligLederPromise])
+
+      // Process role results
+      for (const result of roleResults) {
+        if (result.criticalFailure) {
+          criticalApiFailures++
+        }
+        if (result.data) {
+          testDataResults[result.role] = result.data
+        }
       }
 
-      console.log(`[v0] anyApiFailed status: ${anyApiFailed}`)
-      if (anyApiFailed) {
-        console.log("[v0] Setting tenorUnavailable to true")
+      // Process daglig leder result
+      if (dagligLederResult.criticalFailure) {
+        criticalApiFailures++
+      }
+      if (dagligLederResult.data) {
+        testDataResults.dagligLeder = dagligLederResult.data
+      }
+
+      console.log(`[v0] Critical API failures: ${criticalApiFailures} / ${totalApis}`)
+      console.log(`[v0] Successful data loaded for:`, Object.keys(testDataResults))
+
+      if (criticalApiFailures === totalApis) {
+        console.log("[v0] All APIs failed critically - setting tenorUnavailable to true")
         setTenorUnavailable(true)
-        // Don't set any test data when Tenor is unavailable
         setTestData({})
       } else {
+        console.log("[v0] Using successfully loaded test data")
         setTestData(testDataResults)
+        setTenorUnavailable(false)
       }
 
       setTimeout(() => {
@@ -639,7 +694,7 @@ export default function SystembrukerForm() {
     } catch (error) {
       console.error("[v0] Failed to fetch test data:", error)
       setTenorUnavailable(true)
-      setTestData({}) // Don't use mock data
+      setTestData({})
       setIsLoadingOrgData(false)
     } finally {
       setLoading(false)

@@ -100,6 +100,7 @@ export function hentOrgnummerForRolle(responseJson: TenorResponse | null, role: 
 export function hentFoedselsnummerForDagligLeder(responseJson: TenorResponse | null): string | null {
   const dokumentListe = responseJson?.dokumentListe || []
 
+  // First, try to find Daglig Leder (DAGL)
   for (const dokument of dokumentListe) {
     try {
       const kildedata = JSON.parse(dokument.tenorMetadata.kildedata)
@@ -117,6 +118,28 @@ export function hentFoedselsnummerForDagligLeder(responseJson: TenorResponse | n
       }
     } catch (error) {
       console.warn("Ugyldig kildedata i dokument, hopper over", error)
+    }
+  }
+
+  // If no Daglig Leder found, try Innehaver (INNH) - for Enkeltpersonforetak
+  for (const dokument of dokumentListe) {
+    try {
+      const kildedata = JSON.parse(dokument.tenorMetadata.kildedata)
+      const rollegrupper = kildedata.rollegrupper || []
+
+      for (const gruppe of rollegrupper) {
+        if (gruppe.type?.kode === "INNH") {
+          for (const rolle of gruppe.roller || []) {
+            const fnr = rolle.person?.foedselsnummer
+            if (fnr) {
+              console.log(`[v0] Found Innehaver instead of Daglig Leder: ${fnr}`)
+              return fnr
+            }
+          }
+        }
+      }
+    } catch (error) {
+      console.warn("Ugyldig kildedata i dokument ved Innehaver-søk, hopper over", error)
     }
   }
 

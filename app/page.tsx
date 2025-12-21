@@ -2445,7 +2445,7 @@ export default function SystembrukerForm() {
             </div>
           </CardContent>
 
-          <div className="sticky bottom-0 left-0 right-0 bg-background border-t border-border/50 p-6 shadow-lg">
+          <div className="bg-background border-t border-border/50 p-6">
             <Button
               onClick={handleCreateSystembruker}
               disabled={isCreating || (tenorUnavailable && selectedRole !== "manual" && systembrukerType === "agent")}

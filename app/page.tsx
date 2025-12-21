@@ -16,7 +16,6 @@ import {
   X,
   AlertCircle,
   Sparkles,
-  XCircle,
   Loader2,
   ExternalLink,
   CheckCircle2,
@@ -228,7 +227,7 @@ const accessPackages: AccessPackage[] = [
   { urn: "urn:altinn:accesspackage:servering", displayName: "Servering" },
   { urn: "urn:altinn:accesspackage:post-og-telekommunikasjon", displayName: "Post og telekommunikasjon" },
   { urn: "urn:altinn:accesspackage:informasjon-og-kommunikasjon", displayName: "Informasjon og kommunikasjon" },
-  { urn: "urn:altinn:accesspackage:finansiering-og-forsikring", displayName: "Finansiering og forsikring" },
+  { urn: "urn:altinn:accesspackage:finansiering-og-forsikring", displayName: "Finansiering og forsorsikring" },
   { urn: "urn:altinn:accesspackage:annen-tjenesteyting", displayName: "Annen tjenesteyting" },
   { urn: "urn:altinn:accesspackage:skatt-naering", displayName: "Skatt næring" },
   { urn: "urn:altinn:accesspackage:skattegrunnlag", displayName: "Skattegrunnlag" },
@@ -282,6 +281,8 @@ const accessPackages: AccessPackage[] = [
   { urn: "urn:altinn:accesspackage:maskinporten-scopes-nuf", displayName: "Maskinporten scopes NUF" },
 ]
 
+const roleOrder: Role[] = ["dagligLeder", "manual", "forretningsfoerer", "regnskapsfoerere", "revisor"]
+
 const roleConfig = {
   forretningsfoerer: { name: "Forretningsfører", icon: Building2, color: "bg-blue-500" },
   revisor: { name: "Revisor", icon: Settings, color: "bg-green-500" },
@@ -300,8 +301,8 @@ const roleAccessPackageMapping = {
 }
 
 export default function SystembrukerForm() {
-  const [systembrukerType, setSystembrukerType] = useState<SystembrukerType>("agent")
-  const [selectedRole, setSelectedRole] = useState<Role>("forretningsfoerer")
+  const [systembrukerType, setSystembrukerType] = useState<SystembrukerType>("standard")
+  const [selectedRole, setSelectedRole] = useState<Role>("dagligLeder")
   const [showRoleDropdown, setShowRoleDropdown] = useState(false)
   const [manualOrgNr, setManualOrgNr] = useState("")
   const [manualFnr, setManualFnr] = useState("")
@@ -329,6 +330,8 @@ export default function SystembrukerForm() {
   const [changeRequestSuccessData, setChangeRequestSuccessData] = useState<{
     confirmUrl: string
     dagligLederFnr: string
+    orgName?: string // Added orgName
+    partyOrgNo: string // Added partyOrgNo
   } | null>(null)
 
   useEffect(() => {
@@ -391,7 +394,7 @@ export default function SystembrukerForm() {
 
   const accessPackageDropdownRef = useRef<HTMLDivElement>(null)
   const individualRightDropdownRef = useRef<HTMLDivElement>(null)
-  const roleDropdownRef = useRef<HTMLDivElement>(null)
+  const roleDropdownRef = useRef<HTMLDivElement>(null) // Renamed from rightDropdownRef to avoid confusion
 
   const [isLoadingOrgData, setIsLoadingOrgData] = useState(false)
   const [isLoadingManualDagligLeder, setIsLoadingManualDagligLeder] = useState(false)
@@ -444,7 +447,7 @@ export default function SystembrukerForm() {
   const [systemIsVisible, setSystemIsVisible] = useState(false)
 
   const systemAccessPackageDropdownRef = useRef<HTMLDivElement>(null)
-  const systemRightDropdownRef = useRef<HTMLDivElement>(null)
+  const systemRightDropdownRef = useRef<HTMLDivElement>(null) // Renamed from systemRightDropdownRef to avoid confusion
 
   const [resources, setResources] = useState<Resource[]>([])
   const [isLoadingResources, setIsLoadingResources] = useState(false)
@@ -455,6 +458,10 @@ export default function SystembrukerForm() {
   const [isPrefilling, setIsPrefilling] = useState(false)
 
   const [tenorUnavailable, setTenorUnavailable] = useState(false)
+
+  // States for the individual rights dropdown
+  const [showRightDropdown, setShowRightDropdown] = useState(false)
+  const [rightSearch, setRightSearch] = useState("") // Kept for potential future use, but individualRightSearch is used
 
   const handlePrefillTestData = async () => {
     setIsPrefilling(true)
@@ -819,6 +826,11 @@ export default function SystembrukerForm() {
         setShowIndividualRightDropdown(false)
       }
 
+      // Closing the dropdown for general individual rights, kept for potential future use
+      // if (rightDropdownRef.current && !rightDropdownRef.current.contains(target)) {
+      //   setShowRightDropdown(false)
+      // }
+
       if (roleDropdownRef.current && !roleDropdownRef.current.contains(target)) {
         setShowRoleDropdown(false)
       }
@@ -933,13 +945,12 @@ export default function SystembrukerForm() {
     return basePayload
   }
 
-  const getBrukerflatenUrl = () => {
-    const env = selectedEnvironment.toLowerCase()
-    if (env === "tt02") {
+  const getOverviewUrl = (environment: string) => {
+    if (environment === "TT02") {
       return "https://am.ui.tt02.altinn.no/accessmanagement/ui/systemuser/overview"
     }
-    // AT environments use .cloud domain
-    return `https://am.ui.${env}.altinn.cloud/accessmanagement/ui/systemuser/overview`
+    // AT22, AT23, AT24 all use the same base URL with at22
+    return "https://am.ui.at22.altinn.cloud/accessmanagement/ui/systemuser/overview"
   }
 
   const handleCreateSystembruker = async () => {
@@ -1217,14 +1228,17 @@ export default function SystembrukerForm() {
   }
 
   const getAvailableIndividualRights = (): IndividualRight[] => {
-    if (useCustomSystem && customSystem) {
+    if (useCustomSystem && customSystem && customSystem.rights.length > 0) {
       return customSystem.rights
     }
-    // Convert resources to IndividualRight format
-    return resources.map((resource) => ({
+
+    // Otherwise, return all API rights
+    const apiRights = resources.map((resource) => ({
       name: resource.identifier,
       displayName: resource.title,
     }))
+
+    return apiRights
   }
 
   const filteredAccessPackages = getAvailableAccessPackages().filter((pkg) =>
@@ -1386,6 +1400,8 @@ export default function SystembrukerForm() {
         setChangeRequestSuccessData({
           confirmUrl: result.confirmUrl,
           dagligLederFnr: changeRequestItem.dagligLederFnr || "",
+          orgName: changeRequestItem.orgName, // Pass orgName
+          partyOrgNo: changeRequestItem.partyOrgNo, // Pass partyOrgNo
         })
         setShowChangeRequestSuccess(true)
       } else {
@@ -1467,26 +1483,21 @@ export default function SystembrukerForm() {
   )
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-background via-muted/30 to-background p-8">
-      <div className="container mx-auto px-4 py-8 max-w-5xl">
-        <Card className="shadow-2xl rounded-2xl overflow-hidden border-2 border-primary/10">
-          <CardHeader className="bg-gradient-to-r from-primary/10 via-primary/5 to-background border-b-2 border-primary/20 pb-8">
-            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-              <div>
-                <h1 className="text-4xl md:text-5xl font-bold text-foreground">Tilgangsinfo demoverktøy</h1>
-                <p className="text-muted-foreground mt-3 text-base leading-relaxed">
-                  Opprett og administrer systembrukere enkelt
-                </p>
-              </div>
-              <div className="flex items-center gap-3 bg-card px-6 py-3 rounded-xl shadow-sm border border-border">
-                <Label htmlFor="environment" className="font-semibold text-foreground">
+    <div className="min-h-screen bg-background">
+      <div className="container mx-auto px-6 max-w-6xl py-6">
+        <Card className="shadow-lg rounded-lg border border-border/50">
+          <CardHeader className="border-b border-border/30 py-4 px-6">
+            <div className="flex flex-row justify-between items-center">
+              <h1 className="text-2xl font-semibold text-foreground">Systembruker-test</h1>
+              <div className="flex items-center gap-3">
+                <Label htmlFor="environment" className="font-medium text-foreground text-sm">
                   Miljø:
                 </Label>
                 <select
                   id="environment"
                   value={selectedEnvironment}
                   onChange={(e) => setSelectedEnvironment(e.target.value)}
-                  className="px-4 py-2 border border-border rounded-lg bg-card text-foreground hover:border-primary transition-all focus:ring-2 focus:ring-primary/20 focus:border-primary"
+                  className="px-3 py-2 border border-border rounded-md bg-card text-foreground hover:border-primary transition-colors focus:ring-2 focus:ring-primary/20 focus:border-primary text-sm"
                 >
                   <option value="TT02">TT02</option>
                   <option value="AT22">AT22</option>
@@ -1497,7 +1508,7 @@ export default function SystembrukerForm() {
             </div>
           </CardHeader>
 
-          <CardContent className="p-8 space-y-8">
+          <CardContent className="p-6 pb-32 space-y-3">
             {tenorUnavailable && (
               <div className="rounded-lg border border-destructive/50 bg-destructive/10 p-4">
                 <div className="flex gap-3">
@@ -1514,18 +1525,21 @@ export default function SystembrukerForm() {
                       d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
                     />
                   </svg>
-                  <div className="flex-1">
-                    <p className="font-medium text-destructive">Tenor-søk ser ut til å være utilgjengelig</p>
-                    <p className="text-sm text-destructive/90 mt-1">
-                      Du må velge &quot;bruk eget organisasjonsnummer&quot; for å opprette Systembruker(e)
-                    </p>
-                  </div>
+                  <p className="text-sm text-destructive font-medium">
+                    Tenor-søk ser ut til å være utilgjengelig. Du må velge "Bruk eget organisasjonsnummer" for å
+                    opprette Systembruker(e).
+                  </p>
                 </div>
               </div>
             )}
 
-            <div>
-              <Label className="text-lg font-semibold mb-4 block text-foreground">Systemvalg</Label>
+            <div className="bg-muted/30 border border-border/40 rounded-lg p-6 space-y-4">
+              <div>
+                <h2 className="text-base font-semibold text-foreground mb-1">System</h2>
+                <p className="text-sm text-muted-foreground">
+                  Velg eksisterende system eller opprett nytt i Systemregisteret
+                </p>
+              </div>
               <div className="space-y-3">
                 <div className="flex items-center gap-3">
                   <input
@@ -1563,313 +1577,301 @@ export default function SystembrukerForm() {
             </div>
 
             {/* System Creation Form - Expanded inline when useCreateNewSystem is true */}
-            {useCustomSystem && (
-              <Card className="border-2 border-primary/20 shadow-xl bg-card/95 backdrop-blur">
-                <CardHeader className="border-b border-border/50 bg-muted/30">
-                  <CardTitle className="text-2xl font-bold text-foreground">
-                    Opprett nytt system i Systemregisteret for leverandør
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="p-8 space-y-6">
-                  <div className="flex items-center justify-between">
-                    <h3 className="font-bold text-foreground text-lg">Systemdetaljer</h3>
-                    <Button
-                      onClick={handlePrefillTestData}
-                      variant="outline"
-                      size="sm"
-                      className="rounded-lg flex items-center gap-2 bg-transparent"
-                      disabled={isPrefilling}
-                    >
-                      <Sparkles className="h-4 w-4" />
-                      {isPrefilling ? "Laster..." : "Legg til nye testdata"}
-                    </Button>
-                  </div>
-
-                  {/* Moved Input fields for vendorOrgNo and systemIdName to here */}
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div>
-                      <Label htmlFor="vendorOrgNo" className="font-semibold text-foreground mb-2 block">
-                        Organisasjonsnummer (leverandør) *
-                      </Label>
-                      {isPrefilling ? (
-                        <div className="h-12 rounded-lg bg-muted animate-pulse" />
-                      ) : (
-                        <>
-                          <Input
-                            id="vendorOrgNo"
-                            value={vendorOrgNo}
-                            onChange={(e) => {
-                              setVendorOrgNo(e.target.value)
-                              if (validationErrors.vendorOrgNo) {
-                                setValidationErrors((prev) => ({ ...prev, vendorOrgNo: false }))
-                              }
-                            }}
-                            placeholder="123456789"
-                            className={`h-12 rounded-lg border-border focus:border-primary bg-white ${
-                              validationErrors.vendorOrgNo ? "border-red-500 border-2" : ""
-                            }`}
-                          />
-                          {validationErrors.vendorOrgNo && (
-                            <p className="text-red-500 text-sm mt-1">Dette feltet er obligatorisk</p>
-                          )}
-                        </>
-                      )}
+            <div
+              className={`transition-all duration-700 ease-in-out overflow-hidden ${
+                useCustomSystem ? "max-h-[3000px] opacity-100" : "max-h-0 opacity-0"
+              }`}
+            >
+              {useCustomSystem && (
+                <Card className="border border-border/50 shadow-sm bg-card transform transition-all duration-700 ease-in-out">
+                  <CardHeader className="border-b border-border/30 bg-muted/20 py-4 px-6">
+                    <CardTitle className="text-lg font-semibold text-foreground">
+                      Opprett nytt system i Systemregisteret for leverandør
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="p-6 space-y-6">
+                    <div className="flex items-center justify-between">
+                      <h3 className="font-bold text-foreground text-base">Systemdetaljer</h3>
+                      <Button
+                        onClick={handlePrefillTestData}
+                        variant="outline"
+                        size="sm"
+                        className="rounded-md flex items-center gap-2 bg-transparent"
+                        disabled={isPrefilling}
+                      >
+                        <Sparkles className="h-4 w-4" />
+                        {isPrefilling ? "Laster..." : "Legg til nye testdata"}
+                      </Button>
                     </div>
 
-                    <div>
-                      <Label htmlFor="systemIdName" className="font-semibold text-foreground mb-2 block">
-                        System ID navn *
-                      </Label>
-                      {isPrefilling ? (
-                        <div className="h-12 rounded-lg bg-muted animate-pulse" />
-                      ) : (
-                        <>
-                          <Input
-                            id="systemIdName"
-                            value={systemIdName}
-                            onChange={(e) => {
-                              setSystemIdName(e.target.value)
-                              if (validationErrors.systemIdName) {
-                                setValidationErrors((prev) => ({ ...prev, systemIdName: false }))
-                              }
-                            }}
-                            placeholder="MinApp"
-                            className={`h-12 rounded-lg border-border focus:border-primary bg-white ${
-                              validationErrors.systemIdName ? "border-red-500 border-2" : ""
-                            }`}
-                          />
-                          {validationErrors.systemIdName && (
-                            <p className="text-red-500 text-sm mt-1">Dette feltet er obligatorisk</p>
-                          )}
-                        </>
-                      )}
-                    </div>
-                  </div>
-
-                  {vendorOrgNo && systemIdName && (
-                    <div className="bg-muted/50 p-4 rounded-lg space-y-2">
-                      <p className="text-sm text-muted-foreground">
-                        <span className="font-semibold">System ID:</span>{" "}
-                        <code className="bg-background px-2 py-1 rounded text-foreground">
-                          {vendorOrgNo}_{systemIdName}
-                        </code>
-                      </p>
-                      <p className="text-sm text-muted-foreground">
-                        <span className="font-semibold">Vendor ID:</span>{" "}
-                        <code className="bg-background px-2 py-1 rounded text-foreground">
-                          {countryCode}:{vendorOrgNo}
-                        </code>
-                      </p>
-                    </div>
-                  )}
-
-                  <div>
-                    <Label className="font-semibold text-foreground mb-3 block">Navn *</Label>
-                    <div className="space-y-3">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                       <div>
-                        <Label htmlFor="systemNameNb" className="text-sm text-muted-foreground mb-1 block">
-                          Bokmål *
+                        <Label htmlFor="vendorOrgNo" className="text-sm font-medium text-foreground mb-2 block">
+                          Organisasjonsnummer (leverandør) *
                         </Label>
                         {isPrefilling ? (
-                          <div className="h-12 rounded-lg bg-muted animate-pulse" />
+                          <div className="h-10 rounded-md bg-muted animate-pulse" />
                         ) : (
                           <>
                             <Input
-                              id="systemNameNb"
-                              value={systemNameNb}
+                              id="vendorOrgNo"
+                              value={vendorOrgNo}
                               onChange={(e) => {
-                                setSystemNameNb(e.target.value)
-                                if (validationErrors.systemNameNb) {
-                                  setValidationErrors((prev) => ({ ...prev, systemNameNb: false }))
+                                setVendorOrgNo(e.target.value)
+                                if (validationErrors.vendorOrgNo) {
+                                  setValidationErrors((prev) => ({ ...prev, vendorOrgNo: false }))
                                 }
                               }}
-                              placeholder="Mitt System"
-                              className={`h-12 rounded-lg border-border focus:border-primary bg-white ${
-                                validationErrors.systemNameNb ? "border-red-500 border-2" : ""
+                              placeholder="123456789"
+                              className={`h-10 rounded-md border-border focus:border-primary ${
+                                validationErrors.vendorOrgNo ? "border-red-500 border-2" : ""
                               }`}
                             />
-                            {validationErrors.systemNameNb && (
-                              <p className="text-red-500 text-sm mt-1">Dette feltet er obligatorisk</p>
+                            {validationErrors.vendorOrgNo && (
+                              <p className="text-red-500 text-xs mt-1">Dette feltet er obligatorisk</p>
                             )}
                           </>
                         )}
                       </div>
-                      <div>
-                        <Label htmlFor="systemNameEn" className="text-sm text-muted-foreground mb-1 block">
-                          Engelsk
-                        </Label>
-                        {isPrefilling ? (
-                          <div className="h-12 rounded-lg bg-muted animate-pulse" />
-                        ) : (
-                          <Input
-                            id="systemNameEn"
-                            value={systemNameEn}
-                            onChange={(e) => setSystemNameEn(e.target.value)}
-                            placeholder="My System"
-                            className="h-12 rounded-lg border-border focus:border-primary bg-white"
-                          />
-                        )}
-                      </div>
-                      <div>
-                        <Label htmlFor="systemNameNn" className="text-sm text-muted-foreground mb-1 block">
-                          Nynorsk
-                        </Label>
-                        {isPrefilling ? (
-                          <div className="h-12 rounded-lg bg-muted animate-pulse" />
-                        ) : (
-                          <Input
-                            id="systemNameNn"
-                            value={systemNameNn}
-                            onChange={(e) => setSystemNameNn(e.target.value)}
-                            placeholder="Mitt System"
-                            className="h-12 rounded-lg border-border focus:border-primary bg-white"
-                          />
-                        )}
-                      </div>
-                    </div>
-                  </div>
 
-                  <div>
-                    <Label className="font-semibold text-foreground mb-3 block">Beskrivelse</Label>
-                    <div className="space-y-3">
                       <div>
-                        <Label htmlFor="systemDescNb" className="text-sm text-muted-foreground mb-1 block">
-                          Bokmål
+                        <Label htmlFor="systemIdName" className="text-sm font-medium text-foreground mb-2 block">
+                          System ID navn *
                         </Label>
                         {isPrefilling ? (
-                          <div className="h-12 rounded-lg bg-muted animate-pulse" />
+                          <div className="h-10 rounded-md bg-muted animate-pulse" />
                         ) : (
-                          <Input
-                            id="systemDescNb"
-                            value={systemDescNb}
-                            onChange={(e) => setSystemDescNb(e.target.value)}
-                            placeholder="Beskrivelse av systemet"
-                            className="h-12 rounded-lg border-border focus:border-primary bg-white"
-                          />
-                        )}
-                      </div>
-                      <div>
-                        <Label htmlFor="systemDescEn" className="text-sm text-muted-foreground mb-1 block">
-                          Engelsk
-                        </Label>
-                        {isPrefilling ? (
-                          <div className="h-12 rounded-lg bg-muted animate-pulse" />
-                        ) : (
-                          <Input
-                            id="systemDescEn"
-                            value={systemDescEn}
-                            onChange={(e) => setSystemDescEn(e.target.value)}
-                            placeholder="System description"
-                            className="h-12 rounded-lg border-border focus:border-primary bg-white"
-                          />
-                        )}
-                      </div>
-                      <div>
-                        <Label htmlFor="systemDescNn" className="text-sm text-muted-foreground mb-1 block">
-                          Nynorsk
-                        </Label>
-                        {isPrefilling ? (
-                          <div className="h-12 rounded-lg bg-muted animate-pulse" />
-                        ) : (
-                          <Input
-                            id="systemDescNn"
-                            value={systemDescNn}
-                            onChange={(e) => setSystemDescNn(e.target.value)}
-                            placeholder="Beskrivelse av systemet"
-                            className="h-12 rounded-lg border-border focus:border-primary bg-white"
-                          />
-                        )}
-                      </div>
-                    </div>
-                  </div>
-
-                  <div>
-                    <Label className="font-semibold text-foreground mb-3 block">Tilgangspakker</Label>
-                    <div className="relative" ref={systemAccessPackageDropdownRef}>
-                      <Input
-                        placeholder="Søk etter tilgangspakker..."
-                        value={systemAccessPackageSearch}
-                        onChange={(e) => setSystemAccessPackageSearch(e.target.value)}
-                        onClick={() => setShowSystemAccessPackageDropdown(true)}
-                        onFocus={() => setShowSystemAccessPackageDropdown(true)}
-                        className="h-12 rounded-lg border-border focus:border-primary bg-white"
-                      />
-                      {showSystemAccessPackageDropdown && (
-                        <div className="absolute z-50 w-full mt-2 bg-card border border-border rounded-xl shadow-lg max-h-64 overflow-y-auto">
-                          {filteredSystemAccessPackages.map((pkg) => (
-                            <button
-                              key={pkg.urn}
-                              className="w-full px-6 py-4 text-left hover:bg-muted transition-colors"
-                              onMouseDown={(e) => {
-                                e.preventDefault()
-                                if (!systemAccessPackages.find((p) => p.urn === pkg.urn)) {
-                                  setSystemAccessPackages((prev) => [...prev, pkg])
+                          <>
+                            <Input
+                              id="systemIdName"
+                              value={systemIdName}
+                              onChange={(e) => {
+                                setSystemIdName(e.target.value)
+                                if (validationErrors.systemIdName) {
+                                  setValidationErrors((prev) => ({ ...prev, systemIdName: false }))
                                 }
-                                setSystemAccessPackageSearch("")
-                                setShowSystemAccessPackageDropdown(false)
+                              }}
+                              placeholder="MinApp"
+                              className={`h-10 rounded-md border-border focus:border-primary ${
+                                validationErrors.systemIdName ? "border-red-500 border-2" : ""
+                              }`}
+                            />
+                            {validationErrors.systemIdName && (
+                              <p className="text-red-500 text-xs mt-1">Dette feltet er obligatorisk</p>
+                            )}
+                          </>
+                        )}
+                      </div>
+                    </div>
+
+                    {vendorOrgNo && systemIdName && (
+                      <div className="bg-muted/10 p-4 rounded-md space-y-2">
+                        <p className="text-xs text-muted-foreground">
+                          <span className="font-medium">System ID:</span>{" "}
+                          <code className="bg-background px-2 py-1 rounded text-foreground">
+                            {vendorOrgNo}_{systemIdName}
+                          </code>
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          <span className="font-medium">Vendor ID:</span>{" "}
+                          <code className="bg-background px-2 py-1 rounded text-foreground">
+                            {countryCode}:{vendorOrgNo}
+                          </code>
+                        </p>
+                      </div>
+                    )}
+
+                    <div>
+                      <Label className="text-sm font-medium text-foreground mb-2 block">Navn *</Label>
+                      <div className="space-y-3">
+                        <div>
+                          <Label htmlFor="systemNameNb" className="text-xs text-muted-foreground mb-1 block">
+                            Bokmål *
+                          </Label>
+                          {isPrefilling ? (
+                            <div className="h-10 rounded-md bg-muted animate-pulse" />
+                          ) : (
+                            <>
+                              <Input
+                                id="systemNameNb"
+                                value={systemNameNb}
+                                onChange={(e) => {
+                                  setSystemNameNb(e.target.value)
+                                  if (validationErrors.systemNameNb) {
+                                    setValidationErrors((prev) => ({ ...prev, systemNameNb: false }))
+                                  }
+                                }}
+                                placeholder="Mitt System"
+                                className={`h-10 rounded-md border-border focus:border-primary ${
+                                  validationErrors.systemNameNb ? "border-red-500 border-2" : ""
+                                }`}
+                              />
+                              {validationErrors.systemNameNb && (
+                                <p className="text-red-500 text-xs mt-1">Dette feltet er obligatorisk</p>
+                              )}
+                            </>
+                          )}
+                        </div>
+                        <div>
+                          <Label htmlFor="systemNameEn" className="text-xs text-muted-foreground mb-1 block">
+                            Engelsk
+                          </Label>
+                          {isPrefilling ? (
+                            <div className="h-10 rounded-md bg-muted animate-pulse" />
+                          ) : (
+                            <Input
+                              id="systemNameEn"
+                              value={systemNameEn}
+                              onChange={(e) => setSystemNameEn(e.target.value)}
+                              placeholder="My System"
+                              className="h-10 rounded-md border-border focus:border-primary"
+                            />
+                          )}
+                        </div>
+                        <div>
+                          <Label htmlFor="systemNameNn" className="text-xs text-muted-foreground mb-1 block">
+                            Nynorsk
+                          </Label>
+                          {isPrefilling ? (
+                            <div className="h-10 rounded-md bg-muted animate-pulse" />
+                          ) : (
+                            <Input
+                              id="systemNameNn"
+                              value={systemNameNn}
+                              onChange={(e) => setSystemNameNn(e.target.value)}
+                              placeholder="Mitt System"
+                              className="h-10 rounded-md border-border focus:border-primary"
+                            />
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div>
+                      <Label className="text-sm font-medium text-foreground mb-2 block">Beskrivelse</Label>
+                      <div className="space-y-3">
+                        <div>
+                          <Label htmlFor="systemDescNb" className="text-xs text-muted-foreground mb-1 block">
+                            Bokmål
+                          </Label>
+                          {isPrefilling ? (
+                            <div className="h-10 rounded-md bg-muted animate-pulse" />
+                          ) : (
+                            <Input
+                              id="systemDescNb"
+                              value={systemDescNb}
+                              onChange={(e) => setSystemDescNb(e.target.value)}
+                              placeholder="Beskrivelse av systemet"
+                              className="h-10 rounded-md border-border focus:border-primary"
+                            />
+                          )}
+                        </div>
+                        <div>
+                          <Label htmlFor="systemDescEn" className="text-xs text-muted-foreground mb-1 block">
+                            Engelsk
+                          </Label>
+                          {isPrefilling ? (
+                            <div className="h-10 rounded-md bg-muted animate-pulse" />
+                          ) : (
+                            <Input
+                              id="systemDescEn"
+                              value={systemDescEn}
+                              onChange={(e) => setSystemDescEn(e.target.value)}
+                              placeholder="System description"
+                              className="h-10 rounded-md border-border focus:border-primary"
+                            />
+                          )}
+                        </div>
+                        <div>
+                          <Label htmlFor="systemDescNn" className="text-xs text-muted-foreground mb-1 block">
+                            Nynorsk
+                          </Label>
+                          {isPrefilling ? (
+                            <div className="h-10 rounded-md bg-muted animate-pulse" />
+                          ) : (
+                            <Input
+                              id="systemDescNn"
+                              value={systemDescNn}
+                              onChange={(e) => setSystemDescNn(e.target.value)}
+                              placeholder="Beskrivelse av systemet"
+                              className="h-10 rounded-md border-border focus:border-primary"
+                            />
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div>
+                      <Label className="text-sm font-medium text-foreground mb-2 block">Tilgangspakker</Label>
+                      <div className="relative" ref={systemAccessPackageDropdownRef}>
+                        <Input
+                          placeholder="Søk etter tilgangspakker..."
+                          value={systemAccessPackageSearch}
+                          onChange={(e) => setSystemAccessPackageSearch(e.target.value)}
+                          onClick={() => setShowSystemAccessPackageDropdown(true)}
+                          onFocus={() => setShowSystemAccessPackageDropdown(true)}
+                          className="h-10 rounded-md border-border focus:border-primary"
+                        />
+                        {showSystemAccessPackageDropdown && (
+                          <div className="absolute z-50 w-full mt-2 bg-card border border-border rounded-md shadow-lg max-h-64 overflow-y-auto">
+                            {filteredSystemAccessPackages.map((pkg) => (
+                              <button
+                                key={pkg.urn}
+                                className="w-full px-4 py-3 text-left hover:bg-muted text-sm transition-colors"
+                                onMouseDown={(e) => {
+                                  e.preventDefault()
+                                  if (!systemAccessPackages.find((p) => p.urn === pkg.urn)) {
+                                    setSystemAccessPackages((prev) => [...prev, pkg])
+                                  }
+                                  setSystemAccessPackageSearch("")
+                                  setShowSystemAccessPackageDropdown(false)
+                                }}
+                              >
+                                {pkg.displayName}
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                      <div className="flex flex-wrap gap-2 mt-3">
+                        {systemAccessPackages.map((pkg) => (
+                          <Badge
+                            key={pkg.urn}
+                            className="flex items-center gap-2 px-3 py-1.5 text-sm bg-primary/10 text-primary border border-primary/20 hover:bg-primary/20 transition-colors rounded-md"
+                          >
+                            {pkg.displayName}
+                            <button
+                              className="chip-remove-button ml-1 hover:bg-destructive/20 rounded-full p-0.5 transition-colors"
+                              onClick={() => {
+                                setSystemAccessPackages((prev) => prev.filter((p) => p.urn !== pkg.urn))
                               }}
                             >
-                              {pkg.displayName}
+                              <X className="h-3 w-3 hover:text-destructive" />
                             </button>
-                          ))}
-                        </div>
-                      )}
+                          </Badge>
+                        ))}
+                      </div>
                     </div>
-                    <div className="flex flex-wrap gap-2 mt-3">
-                      {systemAccessPackages.map((pkg) => (
-                        <Badge
-                          key={pkg.urn}
-                          className="flex items-center gap-2 px-3 py-1.5 text-sm bg-primary/10 text-primary border-primary/20 rounded-full"
-                        >
-                          {pkg.displayName}
-                          <button
-                            className="chip-remove-button ml-1 hover:bg-destructive/20 rounded-full p-1 transition-colors"
-                            onClick={() => {
-                              setSystemAccessPackages((prev) => prev.filter((p) => p.urn !== pkg.urn))
-                            }}
-                          >
-                            <XCircle className="h-3 w-3" />
-                          </button>
-                        </Badge>
-                      ))}
-                    </div>
-                  </div>
 
-                  {/* Individual Rights */}
-                  <div>
-                    <Label className="font-semibold text-foreground mb-3 block">Enkeltrettigheter</Label>
-                    {isLoadingResources && <p className="text-sm text-muted-foreground mb-3">Laster ressurser...</p>}
-                    <div className="flex gap-2">
-                      <div className="relative flex-1" ref={systemRightDropdownRef}>
-                        <Input
-                          placeholder="Søk etter enkeltrettigheter fra ressursregisteret..."
-                          value={systemRightSearch}
-                          onChange={(e) => setSystemRightSearch(e.target.value)}
-                          onClick={() => setShowSystemRightDropdown(true)}
-                          onFocus={() => setShowSystemRightDropdown(true)}
-                          onKeyDown={(e) => {
-                            if (e.key === "Enter" && systemRightSearch.trim()) {
-                              e.preventDefault()
-                              if (!systemRights.find((r) => r.name === systemRightSearch.trim())) {
-                                setSystemRights((prev) => [
-                                  ...prev,
-                                  { name: systemRightSearch.trim(), displayName: systemRightSearch.trim() },
-                                ])
-                              }
-                              setSystemRightSearch("")
-                              setShowSystemRightDropdown(false)
-                            }
-                          }}
-                          className="h-12 rounded-lg border-border focus:border-primary bg-white"
-                          disabled={isLoadingResources}
-                        />
-                        {showSystemRightDropdown && !isLoadingResources && (
-                          <div className="absolute z-50 w-full mt-2 bg-card border border-border rounded-xl shadow-lg max-h-64 overflow-y-auto">
-                            {filteredSystemResources.length > 0 ? (
-                              filteredSystemResources.map((resource) => (
+                    {/* Individual Rights */}
+                    <div>
+                      <Label className="text-sm font-medium text-foreground mb-2 block">Enkeltrettigheter</Label>
+                      <div className="flex gap-2">
+                        <div className="relative flex-1" ref={systemRightDropdownRef}>
+                          <Input
+                            placeholder="Søk etter enkeltrettigheter fra ressursregisteret..."
+                            value={systemRightSearch}
+                            onChange={(e) => setSystemRightSearch(e.target.value)}
+                            onClick={() => setShowSystemRightDropdown(true)}
+                            onFocus={() => setShowSystemRightDropdown(true)}
+                            className="h-10 rounded-md border-border focus:border-primary"
+                          />
+                          {showSystemRightDropdown && !isLoadingResources && (
+                            <div className="absolute z-50 w-full mt-2 bg-card border border-border rounded-md shadow-lg max-h-64 overflow-y-auto">
+                              {filteredSystemResources.map((resource) => (
                                 <button
                                   key={resource.identifier}
-                                  className="w-full px-6 py-4 text-left hover:bg-muted transition-colors border-b border-border/50 last:border-0"
+                                  className="w-full px-4 py-3 text-left hover:bg-muted text-sm transition-colors border-b border-border/50 last:border-0"
                                   onMouseDown={(e) => {
                                     e.preventDefault()
                                     if (!systemRights.find((r) => r.name === resource.identifier)) {
@@ -1882,7 +1884,7 @@ export default function SystembrukerForm() {
                                     setShowSystemRightDropdown(false)
                                   }}
                                 >
-                                  <div className="font-medium text-sm text-foreground">{resource.title}</div>
+                                  <div className="font-medium text-foreground">{resource.title}</div>
                                   <div className="text-xs text-muted-foreground mt-1">{resource.identifier}</div>
                                   {resource.description && (
                                     <div className="text-xs text-muted-foreground mt-1 line-clamp-2">
@@ -1891,500 +1893,469 @@ export default function SystembrukerForm() {
                                   )}
                                   <div className="text-xs text-primary mt-1">{resource.resourceType}</div>
                                 </button>
-                              ))
-                            ) : (
-                              <div className="px-6 py-4 text-sm text-muted-foreground">
-                                {systemRightSearch.trim()
-                                  ? "Ingen ressurser funnet. Skriv inn ressurs-ID og klikk 'Legg til' for å legge til manuelt."
-                                  : "Ingen ressurser funnet"}
-                              </div>
-                            )}
-                          </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                        <Button
+                          type="button"
+                          onClick={() => {
+                            const trimmedSearch = systemRightSearch.trim()
+                            if (trimmedSearch && !systemRights.find((r) => r.name === trimmedSearch)) {
+                              setSystemRights((prev) => [...prev, { name: trimmedSearch, displayName: trimmedSearch }])
+                              setSystemRightSearch("")
+                              setShowSystemRightDropdown(false)
+                            }
+                          }}
+                          disabled={!systemRightSearch.trim() || isLoadingResources}
+                          className="h-10 px-4"
+                        >
+                          Legg til
+                        </Button>
+                      </div>
+                      <div className="flex flex-wrap gap-2 mt-3">
+                        {systemRights.map((right) => (
+                          <Badge
+                            key={right.name}
+                            className="flex items-center gap-2 px-3 py-1.5 text-sm bg-primary/10 text-primary border border-primary/20 hover:bg-primary/20 transition-colors rounded-md"
+                          >
+                            {right.displayName}
+                            <button
+                              className="chip-remove-button ml-1 hover:bg-destructive/20 rounded-full p-0.5 transition-colors"
+                              onClick={() => {
+                                setSystemRights((prev) => prev.filter((r) => r.name !== right.name))
+                              }}
+                            >
+                              <X className="h-3 w-3 hover:text-destructive" />
+                            </button>
+                          </Badge>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <div>
+                        <Label htmlFor="systemClientId" className="text-sm font-medium text-foreground mb-2 block">
+                          Client ID
+                        </Label>
+                        {isPrefilling ? (
+                          <div className="h-10 rounded-md bg-muted animate-pulse" />
+                        ) : (
+                          <Input
+                            id="systemClientId"
+                            value={systemClientId}
+                            onChange={(e) => setSystemClientId(e.target.value)}
+                            placeholder="client-id-123"
+                            className="h-10 rounded-md border-border focus:border-primary"
+                          />
                         )}
                       </div>
-                      <Button
-                        type="button"
-                        onClick={() => {
-                          const trimmedSearch = systemRightSearch.trim()
-                          if (trimmedSearch && !systemRights.find((r) => r.name === trimmedSearch)) {
-                            setSystemRights((prev) => [...prev, { name: trimmedSearch, displayName: trimmedSearch }])
-                            setSystemRightSearch("")
-                            setShowSystemRightDropdown(false)
-                          }
-                        }}
-                        disabled={!systemRightSearch.trim() || isLoadingResources}
-                        className="h-12 px-6 whitespace-nowrap"
-                      >
-                        Legg til
-                      </Button>
+
+                      <div className="flex items-center space-x-3 pt-5">
+                        <input
+                          type="checkbox"
+                          id="systemIsVisible"
+                          checked={systemIsVisible}
+                          onChange={(e) => setSystemIsVisible(e.target.checked)}
+                          className="h-5 w-5 rounded border-border text-primary focus:ring-primary"
+                        />
+                        <Label htmlFor="systemIsVisible" className="font-medium text-foreground cursor-pointer">
+                          Synlig system (isVisible)
+                        </Label>
+                      </div>
                     </div>
-                    <div className="flex flex-wrap gap-2 mt-3">
-                      {systemRights.map((right) => (
-                        <Badge
-                          key={right.name}
-                          className="flex items-center gap-2 px-3 py-1.5 text-sm bg-primary/10 text-primary border-primary/20 rounded-full"
-                        >
-                          {right.displayName}
-                          <button
-                            className="chip-remove-button ml-1 hover:bg-destructive/20 rounded-full p-1 transition-colors"
-                            onClick={() => {
-                              setSystemRights((prev) => prev.filter((r) => r.name !== right.name))
-                            }}
-                          >
-                            <XCircle className="h-3 w-3" />
-                          </button>
-                        </Badge>
-                      ))}
+
+                    <Button
+                      onClick={handleCreateSystem}
+                      disabled={isCreatingSystem}
+                      className="w-full h-11 rounded-md font-semibold shadow-sm hover:shadow-md transition-all bg-primary hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {isCreatingSystem ? "Oppretter..." : "Opprett system"}
+                    </Button>
+                  </CardContent>
+                </Card>
+              )}
+            </div>
+
+            <div
+              className={`transition-all duration-700 ease-in-out overflow-hidden ${
+                useCustomSystem && customSystem ? "max-h-[2000px] opacity-100" : "max-h-0 opacity-0"
+              }`}
+            >
+              {useCustomSystem && customSystem && (
+                <div className="p-6 bg-muted/10 rounded-md border border-border/50 transform transition-all duration-700 ease-in-out">
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="font-bold text-foreground text-base">Egendefinert system</h3>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        setCustomSystem(null)
+                        localStorage.removeItem("custom-system")
+                        setSelectedAccessPackages([])
+                        setSelectedIndividualRights([])
+                        setUseCustomSystem(false)
+                      }}
+                      className="rounded-md"
+                    >
+                      Fjern system
+                    </Button>
+                  </div>
+                  <div className="space-y-2 text-xs">
+                    <div>
+                      <span className="font-medium">System ID:</span>{" "}
+                      <span className="font-mono text-muted-foreground">{customSystem.id}</span>
+                    </div>
+                    <div>
+                      <span className="font-medium">Navn:</span> {customSystem.name.nb}
+                    </div>
+                    <div>
+                      <span className="font-medium">Tilgangspakker:</span> {customSystem.accessPackages.length}
+                    </div>
+                    <div>
+                      <span className="font-medium">Enkeltrettigheter:</span> {customSystem.rights.length}
                     </div>
                   </div>
+                </div>
+              )}
+            </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {/* Type Section - Egen or Agent */}
+            <div className="bg-muted/30 border border-border/40 rounded-lg p-6 space-y-6">
+              <div>
+                <h2 className="text-base font-semibold text-foreground mb-1">Kategori</h2>
+                <p className="text-sm text-muted-foreground">
+                  Velg om du skal opprette systembruker for egen virksomhet eller på vegne av en klient.
+                </p>
+              </div>
+
+              <div className="space-y-3">
+                <div className="flex items-center gap-3">
+                  <input
+                    type="radio"
+                    id="type-egen"
+                    name="systembrukerType"
+                    value="standard"
+                    checked={systembrukerType === "standard"}
+                    onChange={(e) => setSystembrukerType(e.target.value as "standard" | "agent")}
+                    className="h-4 w-4 text-primary focus:ring-primary cursor-pointer"
+                  />
+                  <Label htmlFor="type-egen" className="font-medium text-foreground cursor-pointer">
+                    Egen
+                    <span className="text-sm text-muted-foreground ml-2">- Systembruker for egen virksomhet</span>
+                  </Label>
+                </div>
+
+                <div className="flex items-center gap-3">
+                  <input
+                    type="radio"
+                    id="type-agent"
+                    name="systembrukerType"
+                    value="agent"
+                    checked={systembrukerType === "agent"}
+                    onChange={(e) => setSystembrukerType(e.target.value as "standard" | "agent")}
+                    className="h-4 w-4 text-primary focus:ring-primary cursor-pointer"
+                  />
+                  <Label htmlFor="type-agent" className="font-medium text-foreground cursor-pointer">
+                    Agent
+                    <span className="text-sm text-muted-foreground ml-2">
+                      - Systembruker på vegne av en klient (krever tilgangspakke)
+                    </span>
+                  </Label>
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-muted/30 border border-border/40 rounded-lg p-6 space-y-6">
+              <div>
+                <h2 className="text-base font-semibold text-foreground mb-1">Type virksomhet</h2>
+                <p className="text-sm text-muted-foreground">
+                  Henter testorganisasjon fra{" "}
+                  <a
+                    href="https://www.digdir.no/felleslosninger/tenor-testdatasok/1284"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-primary hover:text-primary/80 underline font-medium transition-colors"
+                  >
+                    Tenor Testdatasøk
+                  </a>
+                  . Virksomheten du velger knyttes til Systembrukeren du oppretter
+                  {systembrukerType === "agent" &&
+                    ". Forretningsfører, regnskapsfører og revisor gir deg mulighet til å hente relevante klienter for systembruker som opprettes gitt at du velger en matchende tilgangspakke"}
+                  .
+                </p>
+              </div>
+
+              <div>
+                <Label className="text-sm font-medium text-foreground mb-2 block">Velg rolle</Label>
+                <div className="relative" ref={roleDropdownRef}>
+                  <Button
+                    variant="outline"
+                    onClick={() => setShowRoleDropdown(!showRoleDropdown)}
+                    className="w-full justify-between h-11 rounded-md border-border hover:border-primary hover:bg-transparent transition-colors"
+                  >
+                    <div className="flex items-center gap-3">
+                      {(() => {
+                        const config = roleConfig[selectedRole]
+                        const Icon = config.icon
+                        return (
+                          <>
+                            <Icon className="h-5 w-5 text-primary" />
+                            <span className="font-medium text-foreground">{config.name}</span>
+                          </>
+                        )
+                      })()}
+                    </div>
+                    <ChevronDown className="h-5 w-5 text-muted-foreground" />
+                  </Button>
+                  {showRoleDropdown && (
+                    <div className="absolute z-50 w-full mt-2 bg-card border border-border rounded-md shadow-lg overflow-hidden">
+                      {roleOrder.map((key) => {
+                        const config = roleConfig[key]
+                        const Icon = config.icon
+                        return (
+                          <button
+                            key={key}
+                            className="w-full px-4 py-3 text-left flex items-center gap-3 hover:bg-muted transition-colors border-l-2 border-transparent hover:border-primary"
+                            onMouseDown={(e) => {
+                              e.preventDefault()
+                              setSelectedRole(key as Role)
+                              setShowRoleDropdown(false)
+                            }}
+                          >
+                            <Icon className="h-5 w-5 text-primary" />
+                            <span className="font-medium text-foreground">{config.name}</span>
+                          </button>
+                        )
+                      })}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Manual input fields when "Bruk eget organisasjonsnummer" is selected */}
+              {selectedRole === "manual" && (
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 p-4 bg-background rounded-md border border-border/50">
+                  <div>
+                    <Label htmlFor="orgNr" className="text-xs font-medium text-foreground mb-1 block">
+                      Organisasjonsnummer
+                    </Label>
+                    {isLoadingManualDagligLeder ? (
+                      <div className="h-10 rounded-md bg-muted animate-pulse px-3 py-2 flex items-center border border-border/50"></div>
+                    ) : (
+                      <Input
+                        id="orgNr"
+                        value={manualOrgNr}
+                        onChange={(e) => setManualOrgNr(e.target.value)}
+                        placeholder="9 siffer"
+                        className="h-10 rounded-md border-border focus:border-primary"
+                      />
+                    )}
+                  </div>
+                  {(manualOrgName || isLoadingManualDagligLeder) && (
                     <div>
-                      <Label htmlFor="systemClientId" className="font-semibold text-foreground mb-2 block">
-                        Client ID
+                      <Label htmlFor="manualOrgName" className="text-xs font-medium text-foreground mb-1 block">
+                        Organisasjonsnavn
                       </Label>
-                      {isPrefilling ? (
-                        <div className="h-12 rounded-lg bg-muted animate-pulse" />
+                      {isLoadingManualDagligLeder ? (
+                        <div className="h-10 rounded-md bg-muted animate-pulse px-3 py-2 flex items-center border border-border/50"></div>
                       ) : (
                         <Input
-                          id="systemClientId"
-                          value={systemClientId}
-                          onChange={(e) => setSystemClientId(e.target.value)}
-                          placeholder="client-id-123"
-                          className="h-12 rounded-lg border-border focus:border-primary bg-white"
+                          id="manualOrgName"
+                          value={manualOrgName}
+                          readOnly
+                          className="bg-muted cursor-not-allowed h-10 rounded-md border border-border/50"
                         />
                       )}
                     </div>
-
-                    <div className="flex items-center space-x-3 pt-8">
-                      <input
-                        type="checkbox"
-                        id="systemIsVisible"
-                        checked={systemIsVisible}
-                        onChange={(e) => setSystemIsVisible(e.target.checked)}
-                        className="h-5 w-5 rounded border-border text-primary focus:ring-primary"
-                      />
-                      <Label htmlFor="systemIsVisible" className="font-semibold text-foreground cursor-pointer">
-                        Synlig system (isVisible)
+                  )}
+                  {(manualDagligLederFnr || isLoadingManualDagligLeder) && (
+                    <div>
+                      <Label htmlFor="manualDagligLederFnr" className="text-xs font-medium text-foreground mb-1 block">
+                        Fødselsnr. (daglig leder)
                       </Label>
+                      {isLoadingManualDagligLeder ? (
+                        <div className="h-10 rounded-md bg-muted animate-pulse px-3 py-2 flex items-center border border-border/50"></div>
+                      ) : (
+                        <Input
+                          id="manualDagligLederFnr"
+                          value={manualDagligLederFnr}
+                          readOnly
+                          className="bg-muted cursor-not-allowed h-10 rounded-md border border-border/50"
+                        />
+                      )}
                     </div>
-                  </div>
-
-                  <Button
-                    onClick={handleCreateSystem}
-                    disabled={isCreatingSystem}
-                    className="w-full h-14 font-bold rounded-xl shadow-md hover:shadow-lg transition-all hover:scale-[1.02] bg-primary hover:brightness-105"
-                  >
-                    {isCreatingSystem ? "Oppretter..." : "Opprett system"}
-                  </Button>
-                </CardContent>
-              </Card>
-            )}
-
-            {useCustomSystem && customSystem && (
-              <div className="p-6 bg-primary/5 rounded-xl border border-primary/20">
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="font-bold text-foreground text-lg">Egendefinert system</h3>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => {
-                      setCustomSystem(null)
-                      localStorage.removeItem("custom-system")
-                      setSelectedAccessPackages([])
-                      setSelectedIndividualRights([])
-                      setUseCustomSystem(false)
-                    }}
-                    className="rounded-lg"
-                  >
-                    Fjern system
-                  </Button>
-                </div>
-                <div className="space-y-2 text-sm">
-                  <div>
-                    <span className="font-semibold">System ID:</span>{" "}
-                    <span className="font-mono text-muted-foreground">{customSystem.id}</span>
-                  </div>
-                  <div>
-                    <span className="font-semibold">Navn:</span> {customSystem.name.nb}
-                  </div>
-                  <div>
-                    <span className="font-semibold">Tilgangspakker:</span> {customSystem.accessPackages.length}
-                  </div>
-                  <div>
-                    <span className="font-semibold">Enkeltrettigheter:</span> {customSystem.rights.length}
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* Systembruker Type Selection */}
-            <div>
-              <Label className="text-lg font-semibold mb-4 block text-foreground">Type</Label>
-              <div className="flex gap-3 mt-2">
-                <Button
-                  variant={systembrukerType === "agent" ? "default" : "outline"}
-                  onClick={() => setSystembrukerType("agent")}
-                  className="flex-1 h-11 text-base font-semibold rounded-xl transition-all hover:scale-[1.02]"
-                >
-                  Agent
-                </Button>
-                <Button
-                  variant={systembrukerType === "standard" ? "default" : "outline"}
-                  onClick={() => {
-                    setSystembrukerType("standard")
-                    setSelectedAccessPackages([])
-                  }}
-                  className="flex-1 h-11 text-base font-semibold rounded-xl transition-all hover:scale-[1.02]"
-                >
-                  Egen
-                </Button>
-              </div>
-              <p className="text-sm text-muted-foreground mt-4 leading-relaxed">
-                {systembrukerType === "agent"
-                  ? "Lar deg opprette Systembruker med tilgangspakker for klientforhold"
-                  : "Standard systembruker med enkeltrettigheter og tilgangspakker"}
-              </p>
-            </div>
-
-            {/* Role Selection */}
-            <div>
-              <Label className="text-lg font-semibold mb-4 block text-foreground">Rolle</Label>
-              <p className="text-sm text-muted-foreground mt-1 mb-4 leading-relaxed">
-                Henter testorganisasjon fra{" "}
-                <a
-                  href="https://www.digdir.no/felleslosninger/tenor-testdatasok/1284"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-primary hover:text-primary/80 underline font-medium transition-colors"
-                >
-                  Tenor Testdatasøk
-                </a>
-                {systembrukerType === "agent" &&
-                  ". Forretningsfører, regnskapsfører og revisor gir deg mulighet til å hente relevante klienter for systembruker som opprettes gitt at du velger en matchende tilgangspakke"}
-                .
-              </p>
-              <div className="relative" ref={roleDropdownRef}>
-                <Button
-                  variant="outline"
-                  onClick={() => setShowRoleDropdown(!showRoleDropdown)}
-                  className="w-full justify-between h-16 rounded-xl border-border hover:border-primary hover:bg-transparent transition-all"
-                >
-                  <div className="flex items-center gap-3">
-                    {(() => {
-                      const config = roleConfig[selectedRole]
-                      const Icon = config.icon
-                      return (
-                        <>
-                          <Icon className="h-5 w-5 text-primary" />
-                          <span className="font-semibold text-foreground">{config.name}</span>
-                        </>
-                      )
-                    })()}
-                  </div>
-                  <ChevronDown className="h-5 w-5 text-muted-foreground" />
-                </Button>
-                {showRoleDropdown && (
-                  <div className="absolute z-50 w-full mt-2 bg-card border border-border rounded-xl shadow-lg overflow-hidden">
-                    {Object.entries(roleConfig).map(([key, config]) => {
-                      const Icon = config.icon
-                      return (
-                        <button
-                          key={key}
-                          className="w-full px-6 py-4 text-left flex items-center gap-3 transition-colors group border-l-4 border-transparent hover:border-primary hover:bg-transparent"
-                          onMouseDown={(e) => {
-                            e.preventDefault()
-                            setSelectedRole(key as Role)
-                            setShowRoleDropdown(false)
-                          }}
-                        >
-                          <Icon className="h-5 w-5 text-primary transition-colors" />
-                          <span className="font-semibold text-foreground transition-colors">{config.name}</span>
-                        </button>
-                      )
-                    })}
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* Manual Input Fields */}
-            {selectedRole === "manual" && (
-              <div className="grid grid-cols-1 gap-6 p-6 bg-muted/50 rounded-xl border border-border">
-                <div>
-                  <Label htmlFor="orgNr" className="font-semibold text-foreground mb-2 block">
-                    Organisasjonsnummer
-                  </Label>
-                  {isLoadingOrgData ? (
-                    <div className="h-14 border border-border rounded-lg px-4 py-3 bg-card flex items-center mt-2">
-                      <div className="animate-pulse text-muted-foreground/40 select-none">████████████</div>
+                  )}
+                  {dagligLederError && !isLoadingManualDagligLeder && (
+                    <div className="md:col-span-3 flex items-center gap-2 p-3 bg-amber-50 border border-amber-200 rounded-md">
+                      <AlertCircle className="h-4 w-4 text-amber-600 flex-shrink-0" />
+                      <p className="text-xs text-amber-800">{dagligLederError}</p>
                     </div>
-                  ) : (
-                    <Input
-                      id="orgNr"
-                      value={manualOrgNr}
-                      onChange={(e) => setManualOrgNr(e.target.value)}
-                      placeholder="9 siffer"
-                      className="mt-2 h-14 rounded-lg border-border focus:border-primary"
-                    />
                   )}
                 </div>
-                {(manualOrgName || isLoadingManualDagligLeder) && (
-                  <div>
-                    <Label htmlFor="manualOrgName" className="font-semibold text-foreground mb-2 block">
-                      Organisasjonsnavn
-                    </Label>
-                    {isLoadingManualDagligLeder ? (
-                      <div className="h-14 border border-border rounded-lg px-4 py-3 bg-card flex items-center mt-2">
-                        <div className="animate-pulse text-muted-foreground/40 select-none">
-                          ████████████████████████
-                        </div>
-                      </div>
-                    ) : (
-                      <Input
-                        id="manualOrgName"
-                        value={manualOrgName}
-                        readOnly
-                        className="bg-muted cursor-not-allowed mt-2 h-14 rounded-lg"
-                      />
-                    )}
-                  </div>
-                )}
-                {(manualDagligLederFnr || isLoadingManualDagligLeder) && (
-                  <div>
-                    <Label htmlFor="manualDagligLederFnr" className="font-semibold text-foreground mb-2 block">
-                      Fødselsnummer (daglig leder)
-                    </Label>
-                    {isLoadingManualDagligLeder ? (
-                      <div className="h-14 border border-border rounded-lg px-4 py-3 bg-card flex items-center mt-2">
-                        <div className="animate-pulse text-muted-foreground/40 select-none">███████████████</div>
-                      </div>
-                    ) : (
-                      <Input
-                        id="manualDagligLederFnr"
-                        value={manualDagligLederFnr}
-                        readOnly
-                        className="bg-muted cursor-not-allowed mt-2 h-14 rounded-lg"
-                      />
-                    )}
-                  </div>
-                )}
-                {dagligLederError && !isLoadingManualDagligLeder && (
-                  <div className="flex items-start gap-3 p-4 bg-amber-50 border border-amber-200 rounded-xl">
-                    <AlertCircle className="h-5 w-5 text-amber-600 mt-0.5 flex-shrink-0" />
-                    <p className="text-sm text-amber-800 leading-relaxed">{dagligLederError}</p>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* Auto-filled values display */}
-            {selectedRole !== "manual" && (
-              <div className="space-y-6 p-6 bg-muted/50 rounded-xl border border-border">
-                <div>
-                  <Label htmlFor="editableOrgNr" className="font-semibold text-foreground mb-2 block">
-                    Organisasjonsnummer
-                  </Label>
-                  {isLoadingOrgData ? (
-                    <div className="h-14 border border-border rounded-lg px-4 py-3 bg-card flex items-center mt-2">
-                      <div className="animate-pulse text-muted-foreground/40 select-none">████████████</div>
-                    </div>
-                  ) : (
-                    <Input
-                      id="editableOrgNr"
-                      value={editableOrgNr || testData[selectedRole]?.[0]?.organisasjonsnummer || ""}
-                      readOnly
-                      className="bg-muted cursor-not-allowed mt-2 h-14 rounded-lg"
-                      placeholder="9 siffer"
-                    />
-                  )}
-                </div>
-                {!editableOrgNr && (
-                  <>
-                    {(getCurrentOrgName() || isLoadingOrgData) && (
-                      <div>
-                        <Label htmlFor="orgName" className="font-semibold text-foreground mb-2 block">
-                          Organisasjonsnavn
-                        </Label>
-                        {isLoadingOrgData ? (
-                          <div className="h-14 border border-border rounded-lg px-4 py-3 bg-card flex items-center mt-2">
-                            <div className="animate-pulse text-muted-foreground/40 select-none">
-                              ████████████████████████
-                            </div>
-                          </div>
-                        ) : (
-                          <Input
-                            id="orgName"
-                            value={getCurrentOrgName()}
-                            readOnly
-                            className="bg-muted cursor-not-allowed mt-2 h-14 rounded-lg"
-                          />
-                        )}
-                      </div>
-                    )}
-                    {(getCurrentFnr() || isLoadingOrgData) && (
-                      <div>
-                        <Label htmlFor="fnr" className="font-semibold text-foreground mb-2 block">
-                          Fødselsnummer (daglig leder)
-                        </Label>
-                        {isLoadingOrgData ? (
-                          <div className="h-14 border border-border rounded-lg px-4 py-3 bg-card flex items-center mt-2">
-                            <div className="animate-pulse text-muted-foreground/40 select-none">███████████████</div>
-                          </div>
-                        ) : (
-                          <Input
-                            id="fnr"
-                            value={getCurrentFnr()}
-                            readOnly
-                            className="bg-muted cursor-not-allowed mt-2 h-14 rounded-lg"
-                          />
-                        )}
-                      </div>
-                    )}
-                  </>
-                )}
-              </div>
-            )}
-
-            <div>
-              <Label htmlFor="integrationTitle" className="font-semibold text-foreground mb-2 block">
-                Navn på Systembruker (valgfritt)
-              </Label>
-              <div className="flex gap-2">
-                <Input
-                  id="integrationTitle"
-                  value={integrationTitle}
-                  onChange={(e) => setIntegrationTitle(e.target.value)}
-                  placeholder="Skriv inn navn på systembruker"
-                  className="mt-2 h-14 rounded-lg border-border focus:border-primary flex-1"
-                />
-                {!useCustomSystem && (
-                  <Button
-                    onClick={handlePrefillIntegrationTitle}
-                    variant="outline"
-                    size="sm"
-                    className="mt-2 rounded-lg flex items-center gap-2 bg-transparent"
-                    type="button"
-                  >
-                    <Sparkles className="h-4 w-4" />
-                    Tilfeldig navn
-                  </Button>
-                )}
-              </div>
-              <p className="text-sm text-muted-foreground mt-3 leading-relaxed">
-                Dette navnet vil bli brukt til å identifisere systembrukeren
-              </p>
-            </div>
-
-            <div>
-              <Label className="text-lg font-semibold mb-4 block text-foreground">Tilgangspakker</Label>
-              {useCustomSystem && customSystem && (
-                <p className="text-sm text-muted-foreground mb-3 leading-relaxed">
-                  Kun tilgangspakker definert i det egendefinerte systemet er tilgjengelige
-                </p>
               )}
-              <div className="relative mt-2" ref={accessPackageDropdownRef}>
-                <Input
-                  placeholder="Søk etter tilgangspakker..."
-                  value={accessPackageSearch}
-                  onChange={(e) => setAccessPackageSearch(e.target.value)}
-                  onClick={() => setShowAccessPackageDropdown(true)}
-                  onFocus={() => setShowAccessPackageDropdown(true)}
-                  className="h-14 rounded-lg border-border focus:border-primary"
-                />
-                {showAccessPackageDropdown && (
-                  <div className="absolute z-50 w-full mt-2 bg-card border border-border rounded-xl shadow-lg max-h-64 overflow-y-auto">
-                    {filteredAccessPackages.map((pkg) => (
-                      <button
-                        key={pkg.urn}
-                        className="w-full px-6 py-4 text-left hover:bg-muted text-sm transition-colors"
-                        onMouseDown={(e) => {
-                          e.preventDefault()
-                          if (!selectedAccessPackages.find((p) => p.urn === pkg.urn)) {
-                            setSelectedAccessPackages((prev) => [...prev, pkg])
-                          }
-                          setAccessPackageSearch("")
-                          setShowAccessPackageDropdown(false)
-                        }}
-                      >
-                        {pkg.displayName}
-                      </button>
-                    ))}
+
+              {/* Auto-filled values display */}
+              {selectedRole !== "manual" && (
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 p-4 bg-background rounded-md border border-border/50">
+                  <div>
+                    <Label htmlFor="editableOrgNr" className="text-xs font-medium text-foreground mb-1 block">
+                      Organisasjonsnummer
+                    </Label>
+                    {isLoadingOrgData ? (
+                      <div className="h-10 rounded-md bg-muted animate-pulse px-3 py-2 flex items-center border border-border/50"></div>
+                    ) : (
+                      <Input
+                        id="editableOrgNr"
+                        value={editableOrgNr || testData[selectedRole]?.[0]?.organisasjonsnummer || ""}
+                        readOnly
+                        className="bg-muted cursor-not-allowed h-10 rounded-md border border-border/50"
+                        placeholder="9 siffer"
+                      />
+                    )}
                   </div>
-                )}
+                  {!editableOrgNr && (
+                    <>
+                      {(getCurrentOrgName() || isLoadingOrgData) && (
+                        <div>
+                          <Label htmlFor="orgName" className="text-xs font-medium text-foreground mb-1 block">
+                            Organisasjonsnavn
+                          </Label>
+                          {isLoadingOrgData ? (
+                            <div className="h-10 rounded-md bg-muted animate-pulse px-3 py-2 flex items-center border border-border/50"></div>
+                          ) : (
+                            <Input
+                              id="orgName"
+                              value={getCurrentOrgName()}
+                              readOnly
+                              className="bg-muted cursor-not-allowed h-10 rounded-md border border-border/50"
+                            />
+                          )}
+                        </div>
+                      )}
+                      {(getCurrentFnr() || isLoadingOrgData) && (
+                        <div>
+                          <Label htmlFor="fnr" className="text-xs font-medium text-foreground mb-1 block">
+                            Fødselsnr. (daglig leder)
+                          </Label>
+                          {isLoadingOrgData ? (
+                            <div className="h-10 rounded-md bg-muted animate-pulse px-3 py-2 flex items-center border border-border/50"></div>
+                          ) : (
+                            <Input
+                              id="fnr"
+                              value={getCurrentFnr()}
+                              readOnly
+                              className="bg-muted cursor-not-allowed h-10 rounded-md border border-border/50"
+                            />
+                          )}
+                        </div>
+                      )}
+                    </>
+                  )}
+                </div>
+              )}
+            </div>
+
+            <div className="bg-muted/30 border border-border/40 rounded-lg p-6 space-y-6">
+              <div>
+                <h2 className="text-base font-semibold text-foreground mb-1">Navn</h2>
+                <p className="text-sm text-muted-foreground">Navn og identifikasjon</p>
               </div>
-              <div className="flex flex-wrap gap-2 mt-4">
-                {selectedAccessPackages.map((pkg) => (
-                  <Badge
-                    key={pkg.urn}
-                    className="flex items-center gap-2 px-4 py-2 text-sm bg-primary/10 text-primary border-primary/20 hover:bg-primary/20 transition-colors rounded-full"
-                  >
-                    {pkg.displayName}
-                    <button
-                      className="chip-remove-button ml-1 hover:bg-destructive/20 rounded-full p-1 transition-colors"
-                      aria-label={`Fjern ${pkg.displayName} fra valgte tilgangspakker`}
-                      onClick={() => {
-                        setSelectedAccessPackages((prev) => prev.filter((p) => p.urn !== pkg.urn))
-                      }}
+
+              <div>
+                <Label htmlFor="integrationTitle" className="text-sm font-medium text-foreground mb-2 block">
+                  Navn på Systembruker (valgfritt)
+                </Label>
+                <div className="flex gap-2">
+                  <Input
+                    id="integrationTitle"
+                    value={integrationTitle}
+                    onChange={(e) => setIntegrationTitle(e.target.value)}
+                    placeholder="Skriv inn navn på systembruker"
+                    className="h-10 rounded-md border-border focus:border-primary flex-1"
+                  />
+                  {!useCustomSystem && (
+                    <Button
+                      onClick={handlePrefillIntegrationTitle}
+                      variant="outline"
+                      size="sm"
+                      className="rounded-md flex items-center gap-2 bg-transparent"
+                      type="button"
                     >
-                      <X className="h-3 w-3 hover:text-destructive" />
-                    </button>
-                  </Badge>
-                ))}
+                      <Sparkles className="h-4 w-4" />
+                      Tilfeldig navn
+                    </Button>
+                  )}
+                </div>
+                <p className="text-xs text-muted-foreground mt-2">
+                  Dette navnet vil bli brukt til å identifisere systembrukeren
+                </p>
               </div>
             </div>
 
-            {/* Individual Rights (only for Standard) */}
-            {systembrukerType === "standard" && (
+            <div className="bg-muted/30 border border-border/40 rounded-lg p-6 space-y-6">
               <div>
-                <Label className="text-lg font-semibold mb-4 block text-foreground">Enkeltrettigheter</Label>
+                <h2 className="text-base font-semibold text-foreground mb-1">Tilganger</h2>
+                <p className="text-sm text-muted-foreground">
+                  Hvilke tilganger skal Systembrukeren få?
+                  {systembrukerType === "standard" && (
+                    <span className="block mt-1 text-xs text-muted-foreground/80">
+                      For Egen Systembruker må den som godkjenner ha tilgang til å delegere enkelttjenestene og
+                      tilgangspakkene.
+                    </span>
+                  )}
+                </p>
+              </div>
+
+              <div>
+                <Label className="text-sm font-medium text-foreground mb-2 block">Tilgangspakker</Label>
                 {useCustomSystem && customSystem && (
-                  <p className="text-sm text-muted-foreground mb-3 leading-relaxed">
-                    Kun enkeltrettigheter definert i det egendefinerte systemet er tilgjengelige
+                  <p className="text-xs text-muted-foreground mb-2">
+                    Kun tilgangspakker definert i det egendefinerte systemet er tilgjengelige
                   </p>
                 )}
-                <div className="relative mt-2" ref={individualRightDropdownRef}>
+                <div className="relative" ref={accessPackageDropdownRef}>
                   <Input
-                    placeholder="Søk etter enkeltrettigheter..."
-                    value={individualRightSearch}
-                    onChange={(e) => setIndividualRightSearch(e.target.value)}
-                    onClick={() => setShowIndividualRightDropdown(true)}
-                    onFocus={() => setShowIndividualRightDropdown(true)}
-                    className="h-14 rounded-lg border-border focus:border-primary"
+                    placeholder="Søk etter tilgangspakker..."
+                    value={accessPackageSearch}
+                    onChange={(e) => setAccessPackageSearch(e.target.value)}
+                    onClick={() => setShowAccessPackageDropdown(true)}
+                    onFocus={() => setShowAccessPackageDropdown(true)}
+                    className="h-10 rounded-md border-border focus:border-primary"
                   />
-                  {showIndividualRightDropdown && (
-                    <div className="absolute z-50 w-full mt-2 bg-card border border-border rounded-xl shadow-lg max-h-64 overflow-y-auto">
-                      {filteredIndividualRights.map((right) => (
+                  {showAccessPackageDropdown && (
+                    <div className="absolute z-50 w-full mt-2 bg-card border border-border rounded-md shadow-lg max-h-64 overflow-y-auto">
+                      {filteredAccessPackages.map((pkg) => (
                         <button
-                          key={right.name}
-                          className="w-full px-6 py-4 text-left hover:bg-muted text-sm transition-colors"
+                          key={pkg.urn}
+                          className="w-full px-4 py-3 text-left hover:bg-muted text-sm transition-colors"
                           onMouseDown={(e) => {
                             e.preventDefault()
-                            if (!selectedIndividualRights.find((r) => r.name === right.name)) {
-                              setSelectedIndividualRights((prev) => [...prev, right])
+                            if (!selectedAccessPackages.find((p) => p.urn === pkg.urn)) {
+                              setSelectedAccessPackages((prev) => [...prev, pkg])
                             }
-                            setIndividualRightSearch("")
-                            setShowIndividualRightDropdown(false)
+                            setAccessPackageSearch("")
+                            setShowAccessPackageDropdown(false)
                           }}
                         >
-                          {right.displayName}
+                          {pkg.displayName}
                         </button>
                       ))}
                     </div>
                   )}
                 </div>
-                <div className="flex flex-wrap gap-2 mt-4">
-                  {selectedIndividualRights.map((right) => (
+                <div className="flex flex-wrap gap-2 mt-3">
+                  {selectedAccessPackages.map((pkg) => (
                     <Badge
-                      key={right.name}
-                      className="flex items-center gap-2 px-4 py-2 text-sm bg-primary/10 text-primary border-primary/20 hover:bg-primary/20 transition-colors rounded-full"
+                      key={pkg.urn}
+                      className="flex items-center gap-2 px-3 py-1.5 text-sm bg-primary/10 text-primary border border-primary/20 hover:bg-primary/20 transition-colors rounded-md"
                     >
-                      {right.displayName}
+                      {pkg.displayName}
                       <button
-                        className="chip-remove-button ml-1 hover:bg-destructive/20 rounded-full p-1 transition-colors"
-                        aria-label={`Fjern ${right.displayName} fra valgte individuelle rettigheter`}
+                        className="chip-remove-button ml-1 hover:bg-destructive/20 rounded-full p-0.5 transition-colors"
+                        aria-label={`Fjern ${pkg.displayName} fra valgte tilgangspakker`}
                         onClick={() => {
-                          setSelectedIndividualRights((prev) => prev.filter((r) => r.name !== right.name))
+                          setSelectedAccessPackages((prev) => prev.filter((p) => p.urn !== pkg.urn))
                         }}
                       >
                         <X className="h-3 w-3 hover:text-destructive" />
@@ -2393,35 +2364,115 @@ export default function SystembrukerForm() {
                   ))}
                 </div>
               </div>
-            )}
 
+              {/* Enkeltrettigheter section */}
+              {systembrukerType === "standard" && (
+                <div>
+                  <Label className="text-sm font-medium text-foreground mb-2 block">Enkeltrettigheter</Label>
+                  {isLoadingResources && <p className="text-xs text-muted-foreground mb-2">Laster ressurser...</p>}
+                  <div className="flex gap-2">
+                    <div className="relative flex-1" ref={individualRightDropdownRef}>
+                      <Input
+                        placeholder="Søk etter enkeltrettigheter fra ressursregisteret..."
+                        value={individualRightSearch}
+                        onChange={(e) => setIndividualRightSearch(e.target.value)}
+                        onClick={() => setShowIndividualRightDropdown(true)}
+                        onFocus={() => setShowIndividualRightDropdown(true)}
+                        className="h-10 rounded-md border-border focus:border-primary"
+                      />
+                      {showIndividualRightDropdown && (
+                        <div className="absolute z-50 w-full mt-2 bg-card border border-border rounded-md shadow-lg max-h-64 overflow-y-auto">
+                          {filteredIndividualRights.map((right) => (
+                            <button
+                              key={right.name}
+                              className="w-full px-4 py-3 text-left hover:bg-muted text-sm transition-colors"
+                              onMouseDown={(e) => {
+                                e.preventDefault()
+                                if (!selectedIndividualRights.find((r) => r.name === right.name)) {
+                                  setSelectedIndividualRights((prev) => [...prev, right])
+                                }
+                                setIndividualRightSearch("")
+                                setShowIndividualRightDropdown(false)
+                              }}
+                            >
+                              {right.displayName}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                    <Button
+                      onClick={() => {
+                        if (
+                          individualRightSearch.trim() &&
+                          !selectedIndividualRights.find((r) => r.name === individualRightSearch.trim())
+                        ) {
+                          setSelectedIndividualRights((prev) => [
+                            ...prev,
+                            { name: individualRightSearch.trim(), displayName: individualRightSearch.trim() },
+                          ])
+                          setIndividualRightSearch("")
+                          setShowIndividualRightDropdown(false)
+                        }
+                      }}
+                      disabled={!individualRightSearch.trim()}
+                      className="h-10 px-4"
+                    >
+                      Legg til
+                    </Button>
+                  </div>
+                  <div className="flex flex-wrap gap-2 mt-3">
+                    {selectedIndividualRights.map((right) => (
+                      <Badge
+                        key={right.name}
+                        className="flex items-center gap-2 px-3 py-1.5 text-sm bg-primary/10 text-primary border border-primary/20 hover:bg-primary/20 transition-colors rounded-md"
+                      >
+                        {right.displayName}
+                        <button
+                          className="chip-remove-button ml-1 hover:bg-destructive/20 rounded-full p-0.5 transition-colors"
+                          aria-label={`Fjern ${right.displayName} fra valgte enkeltrettigheter`}
+                          onClick={() => {
+                            setSelectedIndividualRights((prev) => prev.filter((r) => r.name !== right.name))
+                          }}
+                        >
+                          <X className="h-3 w-3 hover:text-destructive" />
+                        </button>
+                      </Badge>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          </CardContent>
+
+          <div className="sticky bottom-0 left-0 right-0 bg-background border-t border-border/50 p-6 shadow-lg">
             <Button
               onClick={handleCreateSystembruker}
               disabled={isCreating || (tenorUnavailable && selectedRole !== "manual" && systembrukerType === "agent")}
-              className="w-full h-16 text-lg font-bold rounded-xl shadow-md hover:shadow-lg transition-all hover:scale-[1.02] bg-primary hover:brightness-105 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-full h-12 text-base font-semibold rounded-md shadow-sm hover:shadow-md transition-all bg-primary hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {isCreating ? "Oppretter..." : "Opprett Systembruker-forespørsel"}
             </Button>
-          </CardContent>
+          </div>
         </Card>
 
-        <Card className="shadow-lg rounded-2xl border-border animate-fade-in-up mt-8">
-          <CardHeader>
-            <CardTitle className="text-xl font-semibold text-foreground">Forhåndsvisning av request</CardTitle>
-            <p className="text-xs text-muted-foreground uppercase tracking-wide mb-1">Forhåndsvisning</p>
+        <Card className="shadow-lg rounded-lg border border-border/50 animate-fade-in-up mt-8">
+          <CardHeader className="border-b border-border/30 py-4 px-6">
+            <CardTitle className="text-lg font-semibold text-foreground">Forhåndsvisning av request</CardTitle>
+            <p className="text-xs text-muted-foreground uppercase tracking-wide">Forhåndsvisning</p>
           </CardHeader>
-          <CardContent className="pt-2">
-            <div className="relative bg-code-bg rounded-xl p-6 overflow-hidden">
-              <pre className="text-code-foreground text-sm overflow-x-auto font-mono leading-relaxed">
+          <CardContent className="p-6">
+            <div className="relative bg-muted/10 rounded-lg p-6 overflow-hidden">
+              <pre className="text-foreground text-sm overflow-x-auto font-mono leading-relaxed">
                 {JSON.stringify(generateJsonPayload(), null, 2)}
               </pre>
             </div>
           </CardContent>
-          <CardFooter className="flex justify-end px-8 pb-6">
+          <CardFooter className="flex justify-end px-6 pb-6">
             <Button
               variant="outline"
               onClick={() => navigator.clipboard.writeText(JSON.stringify(generateJsonPayload(), null, 2))}
-              className="rounded-lg hover:bg-muted transition-colors"
+              className="rounded-md"
             >
               <Copy className="h-4 w-4 mr-2" />
               Kopier JSON
@@ -2430,24 +2481,24 @@ export default function SystembrukerForm() {
         </Card>
 
         {creationHistory.length > 0 && (
-          <Card className="shadow-lg rounded-2xl border-border animate-fade-in-up mt-8">
-            <CardHeader>
-              <CardTitle className="text-xl font-semibold text-foreground">Siste opprettede forespørsler</CardTitle>
+          <Card className="shadow-lg rounded-lg border border-border/50 animate-fade-in-up mt-8">
+            <CardHeader className="border-b border-border/30 py-4 px-6">
+              <CardTitle className="text-lg font-semibold text-foreground">Siste opprettede forespørsler</CardTitle>
             </CardHeader>
-            <CardContent className="pt-4">
+            <CardContent className="p-6 space-y-4">
               <div className="space-y-4">
                 {creationHistory.map((item, index) => (
                   <div
                     key={index}
-                    className="p-6 bg-card rounded-xl text-sm border-l-4 border-primary shadow-sm space-y-3 hover:shadow-md transition-shadow"
+                    className="p-6 bg-card rounded-lg border border-border/50 shadow-sm space-y-3 hover:shadow-md transition-shadow"
                   >
                     {item.integrationTitle && (
-                      <div className="font-bold text-lg text-primary">{item.integrationTitle}</div>
+                      <div className="font-bold text-base text-primary">{item.integrationTitle}</div>
                     )}
                     <div className="font-semibold text-base text-foreground">
                       {item.orgName || `Org: ${item.partyOrgNo}`}
                     </div>
-                    <div className="text-muted-foreground leading-relaxed">
+                    <div className="text-sm text-muted-foreground leading-relaxed">
                       Org: {item.partyOrgNo}
                       {item.dagligLederFnr && <> | Daglig leder: {item.dagligLederFnr}</>}
                       {item.environment && <> | Miljø: {item.environment}</>}
@@ -2459,19 +2510,19 @@ export default function SystembrukerForm() {
                     )}
                     {item.userType && (
                       <div className="text-muted-foreground leading-relaxed">
-                        <span className="font-semibold text-foreground">Type:</span> {item.userType}
+                        <span className="font-medium">Type:</span> {item.userType}
                       </div>
                     )}
                     {item.accessPackages && item.accessPackages.length > 0 && (
                       <div className="mt-3">
-                        <span className="font-semibold text-foreground">Tilgangspakker:</span>
+                        <span className="font-medium">Tilgangspakker:</span>
                         <div className="flex flex-wrap gap-2 mt-2">
                           {item.accessPackages.map((pkg: any, pkgIndex: number) => {
                             const matchedPkg = apiAccessPackages.find((ap) => ap.urn === pkg.urn)
                             return (
                               <Badge
                                 key={pkgIndex}
-                                className="text-xs bg-primary/10 text-primary border-primary/20 rounded-full px-3 py-1"
+                                className="text-xs bg-primary/10 text-primary border border-primary/20 rounded-md px-3 py-1"
                               >
                                 {matchedPkg?.displayName || pkg.urn}
                               </Badge>
@@ -2482,7 +2533,7 @@ export default function SystembrukerForm() {
                     )}
                     {item.rights && item.rights.length > 0 && (
                       <div className="mt-3">
-                        <span className="font-semibold text-foreground">Enkeltrettigheter:</span>
+                        <span className="font-medium">Enkeltrettigheter:</span>
                         <div className="flex flex-wrap gap-2 mt-2">
                           {item.rights.map((right: any, rightIndex: number) => {
                             const resourceValue = right.resource?.[0]?.value
@@ -2490,7 +2541,7 @@ export default function SystembrukerForm() {
                             return (
                               <Badge
                                 key={rightIndex}
-                                className="text-xs bg-primary/10 text-primary border-primary/20 rounded-full px-3 py-1"
+                                className="text-xs bg-primary/10 text-primary border border-primary/20 rounded-md px-3 py-1"
                               >
                                 {matchedRight?.displayName || resourceValue}
                               </Badge>
@@ -2500,14 +2551,13 @@ export default function SystembrukerForm() {
                       </div>
                     )}
                     <div className="mt-4 pt-4 border-t border-border">
-                      {/* CHANGE: Added confirmation URL link */}
                       <div className="flex gap-3">
                         <Button
                           variant="outline"
                           size="sm"
                           onClick={() => handleChangeSystemUser(item, index)}
                           disabled={updatingItemIndex === index}
-                          className="rounded-lg transition-all hover:scale-105 hover:shadow-md"
+                          className="rounded-md"
                         >
                           {updatingItemIndex === index ? "Henter..." : "Endre Systembruker"}
                         </Button>
@@ -2516,7 +2566,7 @@ export default function SystembrukerForm() {
                             variant="outline"
                             size="sm"
                             onClick={() => window.open(item.confirmUrl, "_blank")}
-                            className="rounded-lg transition-all hover:scale-105 hover:shadow-md"
+                            className="rounded-md"
                           >
                             <ExternalLink className="h-4 w-4 mr-2" />
                             Åpne godkjenningslenke
@@ -2533,15 +2583,15 @@ export default function SystembrukerForm() {
 
         {showErrorModal && error && (
           <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-50 backdrop-blur-sm">
-            <Card className="max-w-4xl w-full max-h-[90vh] overflow-y-auto shadow-2xl rounded-2xl animate-fade-in-up">
-              <CardHeader className="bg-destructive/10 border-b border-destructive/20">
-                <CardTitle className="text-destructive flex items-center gap-3 text-xl font-semibold">
-                  <AlertCircle className="h-6 w-6" />
+            <Card className="max-w-4xl w-full max-h-[90vh] overflow-y-auto shadow-2xl rounded-lg animate-fade-in-up">
+              <CardHeader className="bg-destructive/10 border-b border-destructive/20 py-4 px-6">
+                <CardTitle className="text-destructive flex items-center gap-3 text-lg font-semibold">
+                  <AlertCircle className="h-5 w-5" />
                   {error.title}
                 </CardTitle>
               </CardHeader>
-              <CardContent className="space-y-6 pt-6">
-                <div className="p-6 bg-code-bg text-code-foreground rounded-xl shadow-inner">
+              <CardContent className="space-y-6 pt-6 px-6">
+                <div className="p-6 bg-muted/10 rounded-lg shadow-inner">
                   <pre className="text-xs font-mono whitespace-pre-wrap overflow-x-auto leading-relaxed">
                     {error.message}
                   </pre>
@@ -2554,14 +2604,14 @@ export default function SystembrukerForm() {
                       setShowErrorModal(false)
                       setError(null)
                     }}
-                    className="flex-1 h-14 rounded-xl font-semibold"
+                    className="flex-1 h-11 rounded-md font-semibold"
                   >
                     Lukk
                   </Button>
                   <Button
                     variant="outline"
                     onClick={() => navigator.clipboard.writeText(error.message)}
-                    className="flex-1 h-14 rounded-xl font-semibold"
+                    className="flex-1 h-11 rounded-md font-semibold"
                   >
                     <Copy className="h-4 w-4 mr-2" />
                     Kopier feilmelding
@@ -2574,62 +2624,74 @@ export default function SystembrukerForm() {
 
         {showResultModal && creationResult && (
           <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-50 backdrop-blur-sm">
-            <Card className="max-w-2xl w-full max-h-[90vh] overflow-y-auto shadow-2xl rounded-2xl animate-fade-in-up">
-              <CardHeader className="bg-primary/10 border-b border-primary/20">
-                <CardTitle className="text-primary flex items-center gap-3 text-xl font-semibold">
-                  <CheckCircle2 className="h-6 w-6" />
-                  Forespørsel opprettet
+            <Card className="max-w-2xl w-full max-h-[90vh] overflow-y-auto shadow-2xl rounded-lg animate-fade-in-up">
+              <CardHeader className="bg-primary/10 border-b border-primary/20 py-4 px-6">
+                <CardTitle className="text-primary flex items-center gap-3 text-lg font-semibold">
+                  <CheckCircle2 className="h-5 w-5" />
+                  Systembruker-forespørsel opprettet
                 </CardTitle>
               </CardHeader>
-              <CardContent className="space-y-6 pt-6">
-                <div className="p-6 bg-primary/5 rounded-xl border border-primary/20">
-                  <h3 className="font-bold text-foreground mb-4 text-lg">Slik logger du inn for å godkjenne:</h3>
-                  <ol className="list-decimal list-inside space-y-3 text-sm text-foreground leading-relaxed">
-                    <li>
-                      Logg inn med fødselsnummer:{" "}
-                      <strong className="font-mono bg-card px-3 py-1.5 rounded-lg border border-border">
-                        {getCurrentFnr() || "Se testdata"}
-                      </strong>
-                    </li>
-                    <li>
-                      {(() => {
-                        const orgName = selectedOrganization?.navn || getCurrentOrgName() || "organisasjon"
-                        const orgNumber =
-                          selectedOrganization?.organisasjonsnummer || getCurrentOrgNr() || "organisasjonsnummer"
-
-                        if (systembrukerType === "agent") {
-                          return `Logg inn og velg aktør ${orgName} med orgnummer ${orgNumber} for å delegere klienter til Systembruker`
-                        } else {
-                          return (
-                            <>
-                              Logg inn og velg aktør {orgName} med orgnummer {orgNumber} for å se systembrukeren på{" "}
-                              <a
-                                href={getBrukerflatenUrl()}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="text-primary underline hover:text-primary/80 font-semibold transition-colors"
-                              >
-                                brukerflaten
-                              </a>
-                            </>
-                          )
-                        }
-                      })()}
-                    </li>
-                  </ol>
+              <CardContent className="space-y-6 pt-6 px-6">
+                <div className="space-y-3">
+                  <div className="flex justify-between items-center py-2 border-b border-border">
+                    <span className="text-muted-foreground">Organisasjon:</span>
+                    <span className="font-medium">{creationResult.orgName || creationResult.partyOrgNo}</span>
+                  </div>
+                  <div className="flex justify-between items-center py-2 border-b border-border">
+                    <span className="text-muted-foreground">System ID:</span>
+                    <span className="font-mono text-sm">{creationResult.systemId}</span>
+                  </div>
+                  {creationResult.environment && (
+                    <div className="flex justify-between items-center py-2 border-b border-border">
+                      <span className="text-muted-foreground">Miljø:</span>
+                      <Badge variant="secondary">{creationResult.environment}</Badge>
+                    </div>
+                  )}
                 </div>
 
+                {creationResult.confirmUrl && (
+                  <div className="p-6 bg-primary/5 rounded-lg border border-primary/20">
+                    <h3 className="font-bold text-foreground mb-4 text-base">Slik logger du inn for å godkjenne:</h3>
+                    <ol className="list-decimal list-inside space-y-3 text-sm text-foreground leading-relaxed">
+                      <li>
+                        Logg inn med fødselsnummer:{" "}
+                        <strong className="font-mono bg-card px-3 py-1.5 rounded-lg border border-border">
+                          {creationResult.dagligLederFnr || "Se testdata"}
+                        </strong>
+                      </li>
+                      <li>
+                        Logg inn på nytt og velg aktør{" "}
+                        <strong className="font-semibold">
+                          {creationResult.orgName || "organisasjonen"} ({creationResult.partyOrgNo})
+                        </strong>{" "}
+                        for å finne systembrukeren på{" "}
+                        <a
+                          href={getOverviewUrl(creationResult.environment || selectedEnvironment)}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-primary hover:underline font-semibold"
+                        >
+                          overview-siden
+                        </a>
+                      </li>
+                    </ol>
+                  </div>
+                )}
+
                 <div className="flex gap-3 pt-4">
-                  <Button
-                    onClick={() => window.open(creationResult.confirmUrl, "_blank")}
-                    className="flex-1 h-16 font-bold rounded-xl shadow-md hover:shadow-lg transition-all hover:scale-[1.02] bg-primary hover:brightness-105"
-                  >
-                    Åpne godkjenningslenke
-                  </Button>
+                  {creationResult.confirmUrl && (
+                    <Button
+                      onClick={() => window.open(creationResult.confirmUrl, "_blank")}
+                      className="flex-1 h-11 rounded-md font-semibold shadow-sm hover:shadow-md transition-all bg-primary hover:bg-primary/90"
+                    >
+                      <ExternalLink className="h-4 w-4 mr-2" />
+                      Åpne godkjenningslenke
+                    </Button>
+                  )}
                   <Button
                     variant="outline"
                     onClick={() => setShowResultModal(false)}
-                    className="flex-1 h-16 rounded-xl font-semibold"
+                    className="flex-1 h-11 rounded-md font-semibold"
                   >
                     Lukk
                   </Button>
@@ -2641,24 +2703,24 @@ export default function SystembrukerForm() {
 
         {showChangeRequestModal && changeRequestItem && (
           <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-50 backdrop-blur-sm">
-            <Card className="max-w-4xl w-full max-h-[90vh] overflow-y-auto shadow-2xl rounded-2xl animate-fade-in-up">
-              <CardHeader className="bg-primary/10 border-b border-primary/20">
-                <CardTitle className="text-primary flex items-center gap-3 text-xl font-semibold">
-                  <Loader2 className="h-6 w-6 animate-spin" />
+            <Card className="max-w-4xl w-full max-h-[90vh] overflow-y-auto shadow-2xl rounded-lg animate-fade-in-up">
+              <CardHeader className="bg-primary/10 border-b border-primary/20 py-4 px-6">
+                <CardTitle className="text-primary flex items-center gap-3 text-lg font-semibold">
+                  <Loader2 className="h-5 w-5 animate-spin" />
                   Endre Systembruker
                 </CardTitle>
               </CardHeader>
-              <CardContent className="space-y-6 pt-6">
+              <CardContent className="space-y-6 pt-6 px-6">
                 {/* Current Access Packages */}
                 <div>
-                  <Label className="text-lg font-semibold mb-4 block text-foreground">Nåværende tilgangspakker</Label>
+                  <Label className="text-base font-semibold text-foreground mb-4 block">Nåværende tilgangspakker</Label>
                   <div className="flex flex-wrap gap-2">
                     {getCurrentAccessPackages().map((pkg) => {
                       const isMarkedForRemoval = unwantedAccessPackages.find((unwanted) => unwanted.urn === pkg.urn)
                       return (
                         <Badge
                           key={pkg.urn}
-                          className={`flex items-center gap-2 px-4 py-2 text-sm transition-colors rounded-full ${
+                          className={`flex items-center gap-2 px-4 py-2 text-sm transition-colors rounded-md ${
                             isMarkedForRemoval
                               ? "bg-destructive/20 text-destructive border-destructive/40 line-through"
                               : "bg-primary/10 text-primary border-primary/20"
@@ -2666,7 +2728,7 @@ export default function SystembrukerForm() {
                         >
                           {pkg.displayName}
                           <button
-                            className="chip-remove-button ml-1 hover:bg-destructive/20 rounded-full p-1 transition-colors"
+                            className="chip-remove-button ml-1 hover:bg-destructive/20 rounded-full p-0.5 transition-colors"
                             onClick={() => {
                               if (isMarkedForRemoval) {
                                 setUnwantedAccessPackages((prev) => prev.filter((p) => p.urn !== pkg.urn))
@@ -2688,7 +2750,7 @@ export default function SystembrukerForm() {
 
                 {/* Add New Access Packages */}
                 <div>
-                  <Label className="text-lg font-semibold mb-4 block text-foreground">
+                  <Label className="text-base font-semibold text-foreground mb-4 block">
                     Legg til nye tilgangspakker
                   </Label>
                   <div className="relative mt-2" ref={changeRequestAccessPackageDropdownRef}>
@@ -2698,14 +2760,14 @@ export default function SystembrukerForm() {
                       onChange={(e) => setChangeRequestAccessPackageSearch(e.target.value)}
                       onClick={() => setShowChangeRequestAccessPackageDropdown(true)}
                       onFocus={() => setShowChangeRequestAccessPackageDropdown(true)}
-                      className="h-14 rounded-lg border-border focus:border-primary"
+                      className="h-10 rounded-md border-border focus:border-primary"
                     />
                     {showChangeRequestAccessPackageDropdown && (
-                      <div className="absolute z-50 w-full mt-2 bg-card border border-border rounded-xl shadow-lg max-h-64 overflow-y-auto">
+                      <div className="absolute z-50 w-full mt-2 bg-card border border-border rounded-md shadow-lg max-h-64 overflow-y-auto">
                         {filteredChangeRequestAccessPackages.map((pkg) => (
                           <button
                             key={pkg.urn}
-                            className="w-full px-6 py-4 text-left hover:bg-muted text-sm transition-colors"
+                            className="w-full px-4 py-3 text-left hover:bg-muted text-sm transition-colors"
                             onMouseDown={(e) => {
                               e.preventDefault()
                               setRequiredAccessPackages((prev) => [...prev, pkg])
@@ -2723,11 +2785,11 @@ export default function SystembrukerForm() {
                     {requiredAccessPackages.map((pkg) => (
                       <Badge
                         key={pkg.urn}
-                        className="flex items-center gap-2 px-4 py-2 text-sm bg-green-500/10 text-green-600 border-green-500/20 rounded-full"
+                        className="flex items-center gap-2 px-4 py-2 text-sm bg-green-500/10 text-green-600 border-green-500/20 rounded-md"
                       >
                         {pkg.displayName}
                         <button
-                          className="chip-remove-button ml-1 hover:bg-destructive/20 rounded-full p-1 transition-colors"
+                          className="chip-remove-button ml-1 hover:bg-destructive/20 rounded-full p-0.5 transition-colors"
                           onClick={() => {
                             setRequiredAccessPackages((prev) => prev.filter((r) => r.urn !== pkg.urn))
                           }}
@@ -2741,7 +2803,7 @@ export default function SystembrukerForm() {
 
                 {/* Current Individual Rights */}
                 <div>
-                  <Label className="text-lg font-semibold mb-4 block text-foreground">
+                  <Label className="text-base font-semibold text-foreground mb-4 block">
                     Nåværende enkeltrettigheter
                   </Label>
                   <div className="flex flex-wrap gap-2">
@@ -2750,7 +2812,7 @@ export default function SystembrukerForm() {
                       return (
                         <Badge
                           key={right.name}
-                          className={`flex items-center gap-2 px-4 py-2 text-sm transition-colors rounded-full ${
+                          className={`flex items-center gap-2 px-4 py-2 text-sm transition-colors rounded-md ${
                             isMarkedForRemoval
                               ? "bg-destructive/20 text-destructive border-destructive/40 line-through"
                               : "bg-primary/10 text-primary border-primary/20"
@@ -2758,7 +2820,7 @@ export default function SystembrukerForm() {
                         >
                           {right.displayName}
                           <button
-                            className="chip-remove-button ml-1 hover:bg-destructive/20 rounded-full p-1 transition-colors"
+                            className="chip-remove-button ml-1 hover:bg-destructive/20 rounded-full p-0.5 transition-colors"
                             onClick={() => {
                               if (isMarkedForRemoval) {
                                 setUnwantedRights((prev) => prev.filter((r) => r.name !== right.name))
@@ -2780,7 +2842,7 @@ export default function SystembrukerForm() {
 
                 {/* Add New Individual Rights */}
                 <div>
-                  <Label className="text-lg font-semibold mb-4 block text-foreground">
+                  <Label className="text-base font-semibold text-foreground mb-4 block">
                     Legg til nye enkeltrettigheter
                   </Label>
                   <div className="relative mt-2" ref={changeRequestIndividualRightDropdownRef}>
@@ -2790,14 +2852,14 @@ export default function SystembrukerForm() {
                       onChange={(e) => setChangeRequestIndividualRightSearch(e.target.value)}
                       onClick={() => setShowChangeRequestIndividualRightDropdown(true)}
                       onFocus={() => setShowChangeRequestIndividualRightDropdown(true)}
-                      className="h-14 rounded-lg border-border focus:border-primary"
+                      className="h-10 rounded-md border-border focus:border-primary"
                     />
                     {showChangeRequestIndividualRightDropdown && (
-                      <div className="absolute z-50 w-full mt-2 bg-card border border-border rounded-xl shadow-lg max-h-64 overflow-y-auto">
+                      <div className="absolute z-50 w-full mt-2 bg-card border border-border rounded-md shadow-lg max-h-64 overflow-y-auto">
                         {filteredChangeRequestIndividualRights.map((right) => (
                           <button
                             key={right.name}
-                            className="w-full px-6 py-4 text-left hover:bg-muted text-sm transition-colors"
+                            className="w-full px-4 py-3 text-left hover:bg-muted text-sm transition-colors"
                             onMouseDown={(e) => {
                               e.preventDefault()
                               setRequiredRights((prev) => [...prev, right])
@@ -2815,11 +2877,11 @@ export default function SystembrukerForm() {
                     {requiredRights.map((right) => (
                       <Badge
                         key={right.name}
-                        className="flex items-center gap-2 px-4 py-2 text-sm bg-green-500/10 text-green-600 border-green-500/20 rounded-full"
+                        className="flex items-center gap-2 px-4 py-2 text-sm bg-green-500/10 text-green-600 border-green-500/20 rounded-md"
                       >
                         {right.displayName}
                         <button
-                          className="chip-remove-button ml-1 hover:bg-destructive/20 rounded-full p-1 transition-colors"
+                          className="chip-remove-button ml-1 hover:bg-destructive/20 rounded-full p-0.5 transition-colors"
                           onClick={() => {
                             setRequiredRights((prev) => prev.filter((r) => r.name !== right.name))
                           }}
@@ -2835,7 +2897,7 @@ export default function SystembrukerForm() {
                   <Button
                     onClick={handleSubmitChangeRequest}
                     disabled={isSubmittingChangeRequest}
-                    className="flex-1 h-16 font-bold rounded-xl shadow-md hover:shadow-lg transition-all hover:scale-[1.02] bg-primary hover:brightness-105"
+                    className="flex-1 h-11 rounded-md font-semibold shadow-sm hover:shadow-md transition-all bg-primary hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     {isSubmittingChangeRequest ? "Sender..." : "Send endringsforespørsel"}
                   </Button>
@@ -2843,7 +2905,7 @@ export default function SystembrukerForm() {
                     variant="outline"
                     onClick={() => setShowChangeRequestModal(false)}
                     disabled={isSubmittingChangeRequest}
-                    className="flex-1 h-16 rounded-xl font-semibold"
+                    className="flex-1 h-11 rounded-md font-semibold"
                   >
                     Avbryt
                   </Button>
@@ -2853,19 +2915,18 @@ export default function SystembrukerForm() {
           </div>
         )}
 
-        {/* CHANGE: Add change request success modal after main success modal */}
         {showChangeRequestSuccess && changeRequestSuccessData && (
           <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-50 backdrop-blur-sm">
-            <Card className="max-w-2xl w-full max-h-[90vh] overflow-y-auto shadow-2xl rounded-2xl animate-fade-in-up">
-              <CardHeader className="bg-primary/10 border-b border-primary/20">
-                <CardTitle className="text-primary flex items-center gap-3 text-xl font-semibold">
-                  <CheckCircle2 className="h-6 w-6" />
+            <Card className="max-w-2xl w-full max-h-[90vh] overflow-y-auto shadow-2xl rounded-lg animate-fade-in-up">
+              <CardHeader className="bg-primary/10 border-b border-primary/20 py-4 px-6">
+                <CardTitle className="text-primary flex items-center gap-3 text-lg font-semibold">
+                  <CheckCircle2 className="h-5 w-5" />
                   Endringsforespørsel sendt
                 </CardTitle>
               </CardHeader>
-              <CardContent className="space-y-6 pt-6">
-                <div className="p-6 bg-primary/5 rounded-xl border border-primary/20">
-                  <h3 className="font-bold text-foreground mb-4 text-lg">Slik logger du inn for å godkjenne:</h3>
+              <CardContent className="space-y-6 pt-6 px-6">
+                <div className="p-6 bg-primary/5 rounded-lg border border-primary/20">
+                  <h3 className="font-bold text-foreground mb-4 text-base">Slik logger du inn for å godkjenne:</h3>
                   <ol className="list-decimal list-inside space-y-3 text-sm text-foreground leading-relaxed">
                     <li>
                       Logg inn med fødselsnummer:{" "}
@@ -2873,20 +2934,36 @@ export default function SystembrukerForm() {
                         {changeRequestSuccessData.dagligLederFnr || "Se testdata"}
                       </strong>
                     </li>
+                    <li>
+                      Logg inn på nytt og velg aktør{" "}
+                      <strong className="font-semibold">
+                        {changeRequestSuccessData.orgName || "organisasjonen"} ({changeRequestSuccessData.partyOrgNo})
+                      </strong>{" "}
+                      for å finne systembrukeren på{" "}
+                      <a
+                        href={getOverviewUrl(selectedEnvironment)}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-primary hover:underline font-semibold"
+                      >
+                        overview-siden
+                      </a>
+                    </li>
                   </ol>
                 </div>
 
                 <div className="flex gap-3 pt-4">
                   <Button
                     onClick={() => window.open(changeRequestSuccessData.confirmUrl, "_blank")}
-                    className="flex-1 h-16 font-bold rounded-xl shadow-md hover:shadow-lg transition-all hover:scale-[1.02] bg-primary hover:brightness-105"
+                    className="flex-1 h-11 rounded-md font-semibold shadow-sm hover:shadow-md transition-all bg-primary hover:bg-primary/90"
                   >
+                    <ExternalLink className="h-4 w-4 mr-2" />
                     Åpne godkjenningslenke
                   </Button>
                   <Button
                     variant="outline"
                     onClick={() => setShowChangeRequestSuccess(false)}
-                    className="flex-1 h-16 rounded-xl font-semibold"
+                    className="flex-1 h-11 rounded-md font-semibold"
                   >
                     Lukk
                   </Button>

@@ -45,8 +45,8 @@ export async function fetchTestDataForCombinedRole(
     console.warn(`[v0] Client count ${clientCount} exceeds API limit, using ${maxClientCount} instead`)
   }
 
-  // Search for an org that has both regnskapsfoerere AND revisorer roles
-  const combinedQuery = buildQuery("regnskapsfoerere:* AND revisorer:*", organisasjonsform || undefined)
+  // Search for an org that has both revisorer and regnskapsfoerere roles
+  const combinedQuery = buildQuery("revisorer:* and regnskapsfoerere:*", organisasjonsform || undefined)
   const roleResponse = await searchTenor({ query: combinedQuery })
 
   // Extract org number from the regnskapsfører role

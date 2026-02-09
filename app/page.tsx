@@ -23,7 +23,7 @@ import {
 import systemVendors from "@/data/system-vendors.json"
 
 type SystembrukerType = "agent" | "standard"
-type Role = "forretningsfoerer" | "revisor" | "regnskapsfoerere" | "dagligLeder" | "manual"
+type Role = "forretningsfoerer" | "revisor" | "regnskapsfoerere" | "regnskapsfoererOgRevisor" | "dagligLeder" | "manual"
 
 interface AccessPackage {
   urn: string
@@ -281,23 +281,28 @@ const accessPackages: AccessPackage[] = [
   { urn: "urn:altinn:accesspackage:maskinporten-scopes-nuf", displayName: "Maskinporten scopes NUF" },
 ]
 
-const roleOrder: Role[] = ["dagligLeder", "manual", "forretningsfoerer", "regnskapsfoerere", "revisor"]
+const roleOrder: Role[] = ["dagligLeder", "manual", "forretningsfoerer", "regnskapsfoerere", "revisor", "regnskapsfoererOgRevisor"]
 
 const roleConfig = {
   forretningsfoerer: { name: "Forretningsfører", icon: Building2, color: "bg-blue-500" },
   revisor: { name: "Revisor", icon: Settings, color: "bg-green-500" },
   regnskapsfoerere: { name: "Regnskapsfører", icon: Calculator, color: "bg-purple-500" },
+  regnskapsfoererOgRevisor: { name: "Regnskapsfører og Revisor", icon: Calculator, color: "bg-teal-500" },
   dagligLeder: { name: "Daglig leder", icon: User, color: "bg-orange-500" },
   manual: { name: "Bruk eget organisasjonsnummer", icon: User, color: "bg-gray-500" },
 }
 
-const roleAccessPackageMapping = {
+const roleAccessPackageMapping: Record<string, AccessPackage | AccessPackage[]> = {
   forretningsfoerer: {
     urn: "urn:altinn:accesspackage:forretningsforer-eiendom",
     displayName: "Forretningsfører eiendom",
   },
   revisor: { urn: "urn:altinn:accesspackage:ansvarlig-revisor", displayName: "Ansvarlig revisor" },
   regnskapsfoerere: { urn: "urn:altinn:accesspackage:regnskapsforer-lonn", displayName: "Regnskapsfører lønn" },
+  regnskapsfoererOgRevisor: [
+    { urn: "urn:altinn:accesspackage:regnskapsforer-lonn", displayName: "Regnskapsfører lønn" },
+    { urn: "urn:altinn:accesspackage:ansvarlig-revisor", displayName: "Ansvarlig revisor" },
+  ],
 }
 
 export default function SystembrukerForm() {
@@ -563,9 +568,9 @@ export default function SystembrukerForm() {
     try {
       const testDataResults: { [key: string]: TestDataEntry[] } = {}
       let criticalApiFailures = 0 // Track critical failures (503, network errors) instead of any warnings
-      const totalApis = 4 // 3 roles + daglig leder
+      const totalApis = 5 // 3 roles + combined role + daglig leder
 
-      const rolePromises = ["forretningsfoerer", "revisor", "regnskapsfoerere"].map(async (role) => {
+      const rolePromises = ["forretningsfoerer", "revisor", "regnskapsfoerere", "regnskapsfoererOgRevisor"].map(async (role) => {
         try {
           console.log(`[v0] Fetching testdata for role: ${role}`)
           const response = await fetch("/api/testdata", {
@@ -798,9 +803,13 @@ export default function SystembrukerForm() {
 
   useEffect(() => {
     if (systembrukerType === "agent" && selectedRole in roleAccessPackageMapping) {
-      const mappedPackage = roleAccessPackageMapping[selectedRole as keyof typeof roleAccessPackageMapping]
-      // Reset existing selections and add the new mapped package
-      setSelectedAccessPackages([mappedPackage])
+      const mappedPackage = roleAccessPackageMapping[selectedRole]
+      // Reset existing selections and add the new mapped package(s)
+      if (Array.isArray(mappedPackage)) {
+        setSelectedAccessPackages(mappedPackage)
+      } else {
+        setSelectedAccessPackages([mappedPackage])
+      }
     } else if (systembrukerType === "agent") {
       // Reset selections for roles without auto-mapping (like dagligLeder, manual)
       setSelectedAccessPackages([])

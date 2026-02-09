@@ -19,6 +19,7 @@ async function getMockTestData(role: string, clientCount: number): Promise<TestD
     forretningsfoerer: "Forretningsfører",
     revisor: "Revisor",
     regnskapsfoerere: "Regnskapsfører",
+    regnskapsfoererOgRevisor: "Regnskapsfører og Revisor",
   }
 
   const orgNumber = `${Math.floor(Math.random() * 900000000) + 100000000}`
@@ -60,9 +61,16 @@ export async function POST(request: NextRequest) {
 
     try {
       console.log("[v0] Attempting to load authentication modules dynamically")
-      const { fetchTestDataForRole } = await import("@/lib/testdata")
+      const { fetchTestDataForRole, fetchTestDataForCombinedRole } = await import("@/lib/testdata")
 
       console.log("[v0] Modules loaded successfully, attempting real Maskinporten authentication")
+
+      if (role === "regnskapsfoererOgRevisor") {
+        const realData = await fetchTestDataForCombinedRole(clientCount)
+        console.log("[v0] Successfully retrieved combined role test data:", realData)
+        return NextResponse.json(realData)
+      }
+
       const realData = await fetchTestDataForRole(role, clientCount)
       console.log("[v0] Successfully retrieved real test data:", realData)
       return NextResponse.json(realData)

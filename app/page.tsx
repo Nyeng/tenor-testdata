@@ -392,6 +392,14 @@ export default function SystembrukerForm() {
     systemNameNb?: boolean
   }>({})
 
+  // Use a stable externalRef to prevent hydration mismatch
+  const [externalRef, setExternalRef] = useState<string>("")
+
+  useEffect(() => {
+    // Generate UUID only on the client to avoid hydration mismatch
+    setExternalRef(crypto.randomUUID())
+  }, [])
+
   const accessPackageDropdownRef = useRef<HTMLDivElement>(null)
   const individualRightDropdownRef = useRef<HTMLDivElement>(null)
   const roleDropdownRef = useRef<HTMLDivElement>(null) // Renamed from rightDropdownRef to avoid confusion
@@ -917,8 +925,6 @@ export default function SystembrukerForm() {
       return "312605031_Virksomhetsbruker"
     }
 
-    const externalRef = crypto.randomUUID()
-
     const basePayload: any = {
       externalRef: externalRef,
       systemId: getSystemId(),
@@ -1073,6 +1079,8 @@ export default function SystembrukerForm() {
       setCreationResult(resultWithRef)
       setShowResultModal(true)
       setCreationHistory((prev) => [resultWithRef, ...prev.slice(0, 2)])
+      // Generate a new externalRef for the next request
+      setExternalRef(crypto.randomUUID())
     } catch (error) {
       setError({
         title: "Unexpected error",

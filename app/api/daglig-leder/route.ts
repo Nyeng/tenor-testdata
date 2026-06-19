@@ -21,8 +21,15 @@ export async function POST(request: NextRequest) {
     const token = await getMaskinportenToken()
     console.log("[v0] Got Maskinporten token for Daglig leder search")
 
-    // Fetch data from the Daglig leder API
-    const apiUrl = `https://testdata.api.skatteetaten.no/api/testnorge/v2/soek/brreg-er-fr?kql=dagligLeder%3A*&vis=tenorMetadata&antall=${antall}`
+    // Fetch data from the Daglig leder API.
+    // NB: rollegrupper (where daglig leder lives) is returned in kildedata but is
+    // NOT searchable in Tenor KQL — so we search broadly for AS companies and
+    // extract the daglig leder in code below. Over-fetch since not every org has
+    // a populated DAGL role, and use a random seed for variety between requests.
+    const fetchCount = Math.min(antall * 2, 100)
+    const seed = Math.floor(Math.random() * 1_000_000)
+    const kql = encodeURIComponent("organisasjonsform.kode:AS")
+    const apiUrl = `https://testdata.api.skatteetaten.no/api/testnorge/v2/soek/brreg-er-fr?kql=${kql}&vis=tenorMetadata&antall=${fetchCount}&seed=${seed}`
     console.log("[v0] Making request to:", apiUrl)
 
     const response = await fetch(apiUrl, {
@@ -88,7 +95,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       role: "dagligLeder",
-      leaders: leaders,
+      leaders: leaders.slice(0, antall),
     })
   } catch (error) {
     console.error("[v0] Error in daglig-leder API:", error)

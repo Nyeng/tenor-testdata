@@ -1,9 +1,20 @@
 import { SignJWT, importJWK } from "jose"
 
+/**
+ * Maskinporten token client.
+ *
+ * Structure inspired by Altinn's Playwright integration helper:
+ * https://github.com/Altinn/altinn-access-management-frontend/blob/main/playwright/api-requests/MaskinportenToken.ts
+ *
+ * The private key is supplied as a plain JWK JSON string (the `kid` lives
+ * inside the JWK), rather than a base64-encoded blob with a separate KID
+ * environment variable.
+ */
+
 const MASKINPORTEN_CONFIG = {
   audience: "https://test.maskinporten.no/",
   tokenEndpoint: "https://test.maskinporten.no/token",
-  scope: "skatteetaten:testnorge/testdata.read",
+  defaultScope: "skatteetaten:testnorge/testdata.read",
 }
 
 interface TokenCache {
@@ -11,82 +22,124 @@ interface TokenCache {
   expiresAt: number
 }
 
-const tokenCache = new Map<string, TokenCache>()
-
-function cleanJWK(jwk: any) {
-  const cleanedJwk = { ...jwk }
-  delete cleanedJwk.oth // Remove "other primes info" parameter
-  delete cleanedJwk.key_ops // Remove key operations to avoid conflicts
-  delete cleanedJwk.use // Remove use parameter that might conflict
-  return cleanedJwk
+/** JWK fields that can confuse `importJWK` — stripped before import. */
+function cleanJWK(jwk: Record<string, unknown>) {
+  const cleaned = { ...jwk }
+  delete cleaned.oth // "other primes info"
+  delete cleaned.key_ops
+  delete cleaned.use
+  return cleaned
 }
 
-export async function generateAccessToken(): Promise<string> {
-  const now = Date.now()
-  const clientId = process.env.MACHINEPORTEN_CLIENT_ID!
-  const cacheKey = `${clientId}:${MASKINPORTEN_CONFIG.scope}`
+export class MaskinportenToken {
+  private readonly clientId: string
+  private readonly jwk: Record<string, unknown>
+  private readonly tokenCache = new Map<string, TokenCache>()
 
-  // Check cache
-  const cached = tokenCache.get(cacheKey)
-  if (cached && cached.expiresAt > now) {
-    return cached.token
-  }
+  /**
+   * @param clientIdEnv Env var holding the Maskinporten client ID. Default: `MASKINPORTEN_CLIENT_ID`.
+   * @param jwkEnv      Env var holding the private key as a JWK JSON string. Default: `MASKINPORTEN_JWK`.
+   */
+  constructor(clientIdEnv = "MASKINPORTEN_CLIENT_ID", jwkEnv = "MASKINPORTEN_JWK") {
+    const clientId = process.env[clientIdEnv]
+    const jwkString = process.env[jwkEnv]
 
-  try {
-    const jwkData = JSON.parse(Buffer.from(process.env.ENCODED_JWK!, "base64").toString())
-    const cleanedJwk = cleanJWK(jwkData)
-
-    const privateKey = await importJWK(cleanedJwk, "RS256")
-
-    const payload = {
-      aud: MASKINPORTEN_CONFIG.audience,
-      scope: MASKINPORTEN_CONFIG.scope,
-      iss: clientId,
-      iat: Math.floor(now / 1000),
-      exp: Math.floor(now / 1000) + 120,
-      jti: crypto.randomUUID(),
+    if (!clientId) {
+      throw new Error(`Missing environment variable: ${clientIdEnv}`)
+    }
+    if (!jwkString) {
+      throw new Error(`Missing environment variable: ${jwkEnv}`)
     }
 
-    const jwt = await new SignJWT(payload)
+    this.clientId = clientId.trim()
+
+    try {
+      this.jwk = cleanJWK(JSON.parse(jwkString))
+    } catch (error) {
+      throw new Error(
+        `Failed to parse ${jwkEnv} as JSON: ${error instanceof Error ? error.message : String(error)}`,
+      )
+    }
+  }
+
+  /** Build and sign the JWT grant assertion sent to Maskinporten. */
+  private async createGrantAssertion(scope: string, now: number): Promise<string> {
+    const alg = (this.jwk.alg as string) ?? "RS256"
+    const privateKey = await importJWK(this.jwk, alg)
+    const iat = Math.floor(now / 1000)
+
+    return new SignJWT({
+      aud: MASKINPORTEN_CONFIG.audience,
+      iss: this.clientId,
+      scope,
+      iat,
+      exp: iat + 120,
+      jti: crypto.randomUUID(),
+    })
       .setProtectedHeader({
-        alg: "RS256",
+        alg,
         typ: "JWT",
-        kid: process.env.MACHINEPORTEN_KID!,
+        kid: this.jwk.kid as string | undefined,
       })
       .sign(privateKey)
+  }
 
-    // Request token
+  /** Fetch an access token for the given scope, using a short-lived cache. */
+  async getToken(scope: string = MASKINPORTEN_CONFIG.defaultScope): Promise<string> {
+    const now = Date.now()
+    const cacheKey = `${this.clientId}:${scope}`
+
+    const cached = this.tokenCache.get(cacheKey)
+    if (cached && cached.expiresAt > now) {
+      return cached.token
+    }
+
+    const assertion = await this.createGrantAssertion(scope, now)
+
     const response = await fetch(MASKINPORTEN_CONFIG.tokenEndpoint, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/x-www-form-urlencoded",
-      },
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
       body: new URLSearchParams({
         grant_type: "urn:ietf:params:oauth:grant-type:jwt-bearer",
-        assertion: jwt,
+        assertion,
       }),
     })
 
     if (!response.ok) {
       const errorText = await response.text()
-      console.error("[v0] Maskinporten token request failed:", response.status, errorText)
+      console.error("[maskinporten] Token request failed:", response.status, errorText)
       throw new Error(`Maskinporten token request failed: ${response.status} - ${errorText}`)
     }
 
     const tokenData = await response.json()
-    const token = tokenData.access_token
+    const token: string = tokenData.access_token
 
-    // Decode token to get expiration
-    const payload_decoded = JSON.parse(Buffer.from(token.split(".")[1], "base64").toString())
-    const expiresAt = payload_decoded.exp * 1000
-
-    tokenCache.set(cacheKey, { token, expiresAt })
+    // Cache until the token's own expiry (with a small safety margin).
+    const decoded = JSON.parse(Buffer.from(token.split(".")[1], "base64").toString())
+    const expiresAt = decoded.exp * 1000 - 5_000
+    this.tokenCache.set(cacheKey, { token, expiresAt })
 
     return token
-  } catch (error) {
-    console.error("[v0] JWT creation failed:", error)
-    throw new Error(`JWT creation failed: ${error instanceof Error ? error.message : "Unknown error"}`)
   }
+
+  getClientId(): string {
+    return this.clientId
+  }
+}
+
+// --- Module-level convenience API (back-compat with existing callers) ---
+
+let instance: MaskinportenToken | null = null
+
+function getInstance(): MaskinportenToken {
+  if (!instance) {
+    instance = new MaskinportenToken()
+  }
+  return instance
+}
+
+export async function generateAccessToken(scope?: string): Promise<string> {
+  return getInstance().getToken(scope)
 }
 
 export const getMaskinportenToken = generateAccessToken

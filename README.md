@@ -28,3 +28,15 @@ Continue building your app on:
 2. Deploy your chats from the v0 interface
 3. Changes are automatically pushed to this repository
 4. Vercel deploys the latest version from this repository
+
+## Maskinporten
+
+The app authenticates against Maskinporten (test) to call Tenor test data. Set these
+environment variables in Vercel (see `.env.example`):
+
+- `MASKINPORTEN_CLIENT_ID` — the client ID from Samarbeidsportalen.
+- `MASKINPORTEN_JWK` — the private key as a **plain JWK JSON string** (the `kid` must be
+  included inside the JWK). No base64 encoding.
+
+> ⚠️ **Certificate renewal:** the Maskinporten integration certificate must be renewed on
+> **2027-06-19**. When renewed, generate a new JWK and update `MASKINPORTEN_JWK` in Vercel.

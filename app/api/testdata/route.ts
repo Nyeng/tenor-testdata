@@ -45,7 +45,7 @@ export async function POST(request: NextRequest) {
     console.log("[v0] API called with role:", role, "clientCount:", clientCount)
 
     // Check if required environment variables are set
-    const requiredEnvVars = ["MACHINEPORTEN_KID", "ENCODED_JWK", "MACHINEPORTEN_CLIENT_ID"]
+    const requiredEnvVars = ["MASKINPORTEN_CLIENT_ID", "MASKINPORTEN_JWK"]
     const missingVars = requiredEnvVars.filter((varName) => !process.env[varName])
 
     if (missingVars.length > 0) {

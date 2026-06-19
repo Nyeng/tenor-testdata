@@ -98,5 +98,305 @@
   {
     "leverandor": "Nodeworks Norge",
     "integrationTitle": "Nodeworks SystemUser"
+  },
+  {
+    "leverandor": "Borealis AS",
+    "integrationTitle": "Borealis Integrasjon"
+  },
+  {
+    "leverandor": "Saga Norge",
+    "integrationTitle": "Saga Connector"
+  },
+  {
+    "leverandor": "Nimbus Consulting",
+    "integrationTitle": "Nimbus Sync"
+  },
+  {
+    "leverandor": "Kvant IT",
+    "integrationTitle": "Kvant Access"
+  },
+  {
+    "leverandor": "Aurora Data",
+    "integrationTitle": "Aurora Link"
+  },
+  {
+    "leverandor": "Fenris Digital",
+    "integrationTitle": "Fenris Gateway"
+  },
+  {
+    "leverandor": "Heimdal Technologies",
+    "integrationTitle": "Heimdal Integrasjon"
+  },
+  {
+    "leverandor": "Trygg Solutions",
+    "integrationTitle": "Trygg Connector"
+  },
+  {
+    "leverandor": "Bre Partner",
+    "integrationTitle": "Bre Sync"
+  },
+  {
+    "leverandor": "Vidde Systems",
+    "integrationTitle": "Vidde Access"
+  },
+  {
+    "leverandor": "Strøm Software",
+    "integrationTitle": "Strøm Link"
+  },
+  {
+    "leverandor": "Berg Labs",
+    "integrationTitle": "Berg Gateway"
+  },
+  {
+    "leverandor": "Foss AS",
+    "integrationTitle": "Foss Integrasjon"
+  },
+  {
+    "leverandor": "Holt Norge",
+    "integrationTitle": "Holt Connector"
+  },
+  {
+    "leverandor": "Vik Consulting",
+    "integrationTitle": "Vik Sync"
+  },
+  {
+    "leverandor": "Lund IT",
+    "integrationTitle": "Lund Access"
+  },
+  {
+    "leverandor": "Solberg Data",
+    "integrationTitle": "Solberg Link"
+  },
+  {
+    "leverandor": "Stjerne Digital",
+    "integrationTitle": "Stjerne Gateway"
+  },
+  {
+    "leverandor": "Orion Technologies",
+    "integrationTitle": "Orion Integrasjon"
+  },
+  {
+    "leverandor": "Vega Solutions",
+    "integrationTitle": "Vega Connector"
+  },
+  {
+    "leverandor": "Sirius Partner",
+    "integrationTitle": "Sirius Sync"
+  },
+  {
+    "leverandor": "Nova Systems",
+    "integrationTitle": "Nova Access"
+  },
+  {
+    "leverandor": "Zenit Software",
+    "integrationTitle": "Zenit Link"
+  },
+  {
+    "leverandor": "Pulsar Labs",
+    "integrationTitle": "Pulsar Gateway"
+  },
+  {
+    "leverandor": "Kvarts AS",
+    "integrationTitle": "Kvarts Integrasjon"
+  },
+  {
+    "leverandor": "Granitt Norge",
+    "integrationTitle": "Granitt Connector"
+  },
+  {
+    "leverandor": "Obsidian Consulting",
+    "integrationTitle": "Obsidian Sync"
+  },
+  {
+    "leverandor": "Flint IT",
+    "integrationTitle": "Flint Access"
+  },
+  {
+    "leverandor": "Kobber Data",
+    "integrationTitle": "Kobber Link"
+  },
+  {
+    "leverandor": "Jernkode Digital",
+    "integrationTitle": "Jernkode Gateway"
+  },
+  {
+    "leverandor": "Titan Technologies",
+    "integrationTitle": "Titan Integrasjon"
+  },
+  {
+    "leverandor": "Krypton Solutions",
+    "integrationTitle": "Krypton Connector"
+  },
+  {
+    "leverandor": "Xenon Partner",
+    "integrationTitle": "Xenon Sync"
+  },
+  {
+    "leverandor": "Helix Systems",
+    "integrationTitle": "Helix Access"
+  },
+  {
+    "leverandor": "Vektor Software",
+    "integrationTitle": "Vektor Link"
+  },
+  {
+    "leverandor": "Matrise Labs",
+    "integrationTitle": "Matrise Gateway"
+  },
+  {
+    "leverandor": "Syntaks AS",
+    "integrationTitle": "Syntaks Integrasjon"
+  },
+  {
+    "leverandor": "Kjerne Norge",
+    "integrationTitle": "Kjerne Connector"
+  },
+  {
+    "leverandor": "Tråd Consulting",
+    "integrationTitle": "Tråd Sync"
+  },
+  {
+    "leverandor": "Buffer IT",
+    "integrationTitle": "Buffer Access"
+  },
+  {
+    "leverandor": "Pixel Data",
+    "integrationTitle": "Pixel Link"
+  },
+  {
+    "leverandor": "Raster Digital",
+    "integrationTitle": "Raster Gateway"
+  },
+  {
+    "leverandor": "Render Technologies",
+    "integrationTitle": "Render Integrasjon"
+  },
+  {
+    "leverandor": "Nordlys Solutions",
+    "integrationTitle": "Nordlys Connector"
+  },
+  {
+    "leverandor": "Midgard Partner",
+    "integrationTitle": "Midgard Sync"
+  },
+  {
+    "leverandor": "Yggdrasil Systems",
+    "integrationTitle": "Yggdrasil Access"
+  },
+  {
+    "leverandor": "Mimir Software",
+    "integrationTitle": "Mimir Link"
+  },
+  {
+    "leverandor": "Valkyr Labs",
+    "integrationTitle": "Valkyr Gateway"
+  },
+  {
+    "leverandor": "Ravn AS",
+    "integrationTitle": "Ravn Integrasjon"
+  },
+  {
+    "leverandor": "Ulv Norge",
+    "integrationTitle": "Ulv Connector"
+  },
+  {
+    "leverandor": "Bjørn Consulting",
+    "integrationTitle": "Bjørn Sync"
+  },
+  {
+    "leverandor": "Falk IT",
+    "integrationTitle": "Falk Access"
+  },
+  {
+    "leverandor": "Ørn Data",
+    "integrationTitle": "Ørn Link"
+  },
+  {
+    "leverandor": "Laks Digital",
+    "integrationTitle": "Laks Gateway"
+  },
+  {
+    "leverandor": "Sild Technologies",
+    "integrationTitle": "Sild Integrasjon"
+  },
+  {
+    "leverandor": "Torsk Solutions",
+    "integrationTitle": "Torsk Connector"
+  },
+  {
+    "leverandor": "Kveite Partner",
+    "integrationTitle": "Kveite Sync"
+  },
+  {
+    "leverandor": "Brisling Systems",
+    "integrationTitle": "Brisling Access"
+  },
+  {
+    "leverandor": "Fjordkraft Software",
+    "integrationTitle": "Fjordkraft Link"
+  },
+  {
+    "leverandor": "Vidsyn Labs",
+    "integrationTitle": "Vidsyn Gateway"
+  },
+  {
+    "leverandor": "Klarsikt AS",
+    "integrationTitle": "Klarsikt Integrasjon"
+  },
+  {
+    "leverandor": "Skogen Norge",
+    "integrationTitle": "Skogen Connector"
+  },
+  {
+    "leverandor": "Myrland Consulting",
+    "integrationTitle": "Myrland Sync"
+  },
+  {
+    "leverandor": "Heia IT",
+    "integrationTitle": "Heia Access"
+  },
+  {
+    "leverandor": "Lia Data",
+    "integrationTitle": "Lia Link"
+  },
+  {
+    "leverandor": "Bekken Digital",
+    "integrationTitle": "Bekken Gateway"
+  },
+  {
+    "leverandor": "Elvefar Technologies",
+    "integrationTitle": "Elvefar Integrasjon"
+  },
+  {
+    "leverandor": "Sundet Solutions",
+    "integrationTitle": "Sundet Connector"
+  },
+  {
+    "leverandor": "Neset Partner",
+    "integrationTitle": "Neset Sync"
+  },
+  {
+    "leverandor": "Odden Systems",
+    "integrationTitle": "Odden Access"
+  },
+  {
+    "leverandor": "Skjæret Software",
+    "integrationTitle": "Skjæret Link"
+  },
+  {
+    "leverandor": "Bølgen Labs",
+    "integrationTitle": "Bølgen Gateway"
+  },
+  {
+    "leverandor": "Tidevann AS",
+    "integrationTitle": "Tidevann Integrasjon"
+  },
+  {
+    "leverandor": "Kompass Norge",
+    "integrationTitle": "Kompass Connector"
+  },
+  {
+    "leverandor": "Sekstant Consulting",
+    "integrationTitle": "Sekstant Sync"
   }
 ]

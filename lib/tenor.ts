@@ -7,6 +7,7 @@ interface TenorSearchOptions {
   query: string
   antall?: number
   includeTenorMetadata?: boolean
+  seed?: number
 }
 
 interface TenorDocument {
@@ -24,6 +25,7 @@ export async function searchTenor({
   query,
   antall = 1,
   includeTenorMetadata = true,
+  seed,
 }: TenorSearchOptions): Promise<TenorResponse | null> {
   try {
     const token = await generateAccessToken()
@@ -33,6 +35,9 @@ export async function searchTenor({
       url += "&vis=tenorMetadata"
     }
     url += `&antall=${antall}`
+    if (seed != null) {
+      url += `&seed=${seed}`
+    }
 
     const response = await fetch(url, {
       headers: {

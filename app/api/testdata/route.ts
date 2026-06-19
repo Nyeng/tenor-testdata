@@ -1,43 +1,5 @@
 import { type NextRequest, NextResponse } from "next/server"
 
-interface TestDataResult {
-  role: string
-  orgnummer: string
-  dagligLeder: {
-    foedselsnummer: string
-    organisasjonsnummer: string
-    organisasjonsnavn?: string
-  }
-  clients: Array<{
-    navn: string
-    organisasjonsnummer: string
-  }>
-}
-
-async function getMockTestData(role: string, clientCount: number): Promise<TestDataResult> {
-  const roleMapping: Record<string, string> = {
-    forretningsfoerer: "Forretningsfører",
-    revisor: "Revisor",
-    regnskapsfoerere: "Regnskapsfører",
-  }
-
-  const orgNumber = `${Math.floor(Math.random() * 900000000) + 100000000}`
-
-  return {
-    role,
-    orgnummer: orgNumber,
-    dagligLeder: {
-      foedselsnummer: `${Math.floor(Math.random() * 90000000000) + 10000000000}`,
-      organisasjonsnummer: orgNumber,
-      organisasjonsnavn: `${roleMapping[role] || "Ukjent"} AS`,
-    },
-    clients: Array.from({ length: clientCount }, (_, i) => ({
-      navn: `Klient ${i + 1} AS`,
-      organisasjonsnummer: `${Math.floor(Math.random() * 900000000) + 100000000}`,
-    })),
-  }
-}
-
 export async function POST(request: NextRequest) {
   try {
     const { role, clientCount } = await request.json()
@@ -69,14 +31,14 @@ export async function POST(request: NextRequest) {
     } catch (apiError) {
       console.error("[v0] Real API failed (module loading or authentication):", apiError)
 
-      const testData = await getMockTestData(role, clientCount)
-      console.log("[v0] Generated fallback mock test data:", testData)
-
-      return NextResponse.json({
-        ...testData,
-        warning: `Real API failed: ${apiError instanceof Error ? apiError.message : "Unknown error"}. Using mock data.`,
-        error_details: apiError instanceof Error ? apiError.stack : "Unknown error",
-      })
+      // No mock fallback: surface the real failure so it is never mistaken for real data.
+      return NextResponse.json(
+        {
+          error: apiError instanceof Error ? apiError.message : "Failed to fetch test data",
+          details: apiError instanceof Error ? apiError.stack : "Unknown error",
+        },
+        { status: 502 },
+      )
     }
   } catch (error) {
     console.error("[v0] Critical error in API route:", error)

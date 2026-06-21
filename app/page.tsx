@@ -556,9 +556,8 @@ export default function SystembrukerForm() {
     setIsLoadingOrgData(true)
     setTenorUnavailable(false) // Reset error state
     console.log("[v0] Loading test data...")
+    setTestData({}) // reset so stale data doesn't linger while reloading
     try {
-      const testDataResults: { [key: string]: TestDataEntry[] } = {}
-      let criticalApiFailures = 0 // Track critical failures (503, network errors) instead of any warnings
       const totalApis = 4 // 3 roles + daglig leder
 
       const rolePromises = ["forretningsfoerer", "revisor", "regnskapsfoerere"].map(async (role) => {
@@ -654,42 +653,40 @@ export default function SystembrukerForm() {
         }
       })()
 
-      const [roleResults, dagligLederResult] = await Promise.all([Promise.all(rolePromises), dagligLederPromise])
-
-      // Process role results
-      for (const result of roleResults) {
-        if (result.criticalFailure) {
-          criticalApiFailures++
-        }
+      // Daglig leder is the default/first-shown role, so render it as soon as it
+      // lands and stop gating the org display — don't wait for the slower role calls.
+      const dagligLederSettled = dagligLederPromise.then((result) => {
         if (result.data) {
-          testDataResults[result.role] = result.data
+          setTestData((prev) => ({ ...prev, dagligLeder: result.data }))
+          setTenorUnavailable(false)
         }
-      }
+        setIsLoadingOrgData(false)
+        return result
+      })
 
-      // Process daglig leder result
-      if (dagligLederResult.criticalFailure) {
-        criticalApiFailures++
-      }
-      if (dagligLederResult.data) {
-        testDataResults.dagligLeder = dagligLederResult.data
-      }
+      // Roles fill in progressively as each one resolves.
+      const roleSettled = rolePromises.map((promise) =>
+        promise.then((result) => {
+          if (result.data) {
+            setTestData((prev) => ({ ...prev, [result.role]: result.data }))
+          }
+          return result
+        }),
+      )
+
+      // Once everything has settled, surface the all-failed state if applicable.
+      const allResults = await Promise.all([dagligLederSettled, ...roleSettled])
+      const criticalApiFailures = allResults.filter((result) => result.criticalFailure).length
 
       console.log(`[v0] Critical API failures: ${criticalApiFailures} / ${totalApis}`)
-      console.log(`[v0] Successful data loaded for:`, Object.keys(testDataResults))
 
       if (criticalApiFailures === totalApis) {
         console.log("[v0] All APIs failed critically - setting tenorUnavailable to true")
         setTenorUnavailable(true)
         setTestData({})
-      } else {
-        console.log("[v0] Using successfully loaded test data")
-        setTestData(testDataResults)
-        setTenorUnavailable(false)
       }
 
-      setTimeout(() => {
-        setIsLoadingOrgData(false)
-      }, 800)
+      setIsLoadingOrgData(false)
     } catch (error) {
       console.error("[v0] Failed to fetch test data:", error)
       setTenorUnavailable(true)
@@ -769,9 +766,7 @@ export default function SystembrukerForm() {
           console.error("[v0] Error fetching daglig leder for manual org:", error)
           setDagligLederError("Kunne ikke hente daglig leder. Prøv igjen senere.")
         } finally {
-          setTimeout(() => {
-            setIsLoadingManualDagligLeder(false)
-          }, 400)
+          setIsLoadingManualDagligLeder(false)
         }
       } else {
         setManualOrgName("")

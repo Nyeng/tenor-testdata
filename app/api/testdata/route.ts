@@ -2,9 +2,9 @@ import { type NextRequest, NextResponse } from "next/server"
 
 export async function POST(request: NextRequest) {
   try {
-    const { role, clientCount } = await request.json()
+    const { role } = await request.json()
 
-    console.log("[v0] API called with role:", role, "clientCount:", clientCount)
+    console.log("[v0] API called with role:", role)
 
     // Check if required environment variables are set
     const requiredEnvVars = ["MASKINPORTEN_CLIENT_ID", "MASKINPORTEN_JWK"]
@@ -25,7 +25,7 @@ export async function POST(request: NextRequest) {
       const { fetchTestDataForRole } = await import("@/lib/testdata")
 
       console.log("[v0] Modules loaded successfully, attempting real Maskinporten authentication")
-      const realData = await fetchTestDataForRole(role, clientCount)
+      const realData = await fetchTestDataForRole(role)
       console.log("[v0] Successfully retrieved real test data:", realData)
       return NextResponse.json(realData)
     } catch (apiError) {

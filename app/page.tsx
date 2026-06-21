@@ -49,10 +49,6 @@ interface TestDataResponse {
     organisasjonsnummer: string
     organisasjonsnavn?: string
   }
-  clients: Array<{
-    navn: string
-    organisasjonsnummer: string
-  }>
   warning?: string // Added warning field
 }
 
@@ -571,7 +567,7 @@ export default function SystembrukerForm() {
           const response = await fetch("/api/testdata", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ role, clientCount: 10 }),
+            body: JSON.stringify({ role }),
           })
 
           console.log(`[v0] Response status for ${role}: ${response.status}`)
@@ -599,14 +595,10 @@ export default function SystembrukerForm() {
             }
           }
 
-          const entries: TestDataEntry[] = data.clients.map((client) => ({
-            organisasjonsnavn: client.navn,
-            organisasjonsnummer: client.organisasjonsnummer,
-            foedselsnummer: "",
-          }))
+          const entries: TestDataEntry[] = []
 
           if (data.dagligLeder) {
-            entries.unshift({
+            entries.push({
               organisasjonsnavn: data.dagligLeder.organisasjonsnavn || `${role} hovedorganisasjon`,
               organisasjonsnummer: data.dagligLeder.organisasjonsnummer,
               foedselsnummer: data.dagligLeder.foedselsnummer,

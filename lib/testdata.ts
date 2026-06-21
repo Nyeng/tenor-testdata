@@ -50,22 +50,38 @@ function extractVirksomhetOrgnr(virksomhet: any): string | null {
   return JSON.stringify(virksomhet).match(/\b\d{9}\b/)?.[0] ?? null
 }
 
+/** Fisher–Yates shuffle (returns a new array). */
+function shuffle<T>(items: T[]): T[] {
+  const result = [...items]
+  for (let i = result.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1))
+    ;[result[i], result[j]] = [result[j], result[i]]
+  }
+  return result
+}
+
 /**
  * Scan companies of the given organisasjonsform and build a map of
  * agent firm orgnr -> the clients that have it in the given role.
+ *
+ * Pages run in parallel (each with its own random seed) so a multi-page scan
+ * costs roughly one round-trip instead of N sequential ones.
  */
 async function scanAgentRelationships(searchForm: string, roleCode: string): Promise<Map<string, Map<string, Client>>> {
   const agents = new Map<string, Map<string, Client>>()
 
-  for (let page = 0; page < SCAN_PAGES; page++) {
-    const seed = Math.floor(Math.random() * 1_000_000)
-    const response = await searchTenor({
-      query: `organisasjonsform.kode:${searchForm}`,
-      antall: SCAN_PAGE_SIZE,
-      includeTenorMetadata: true,
-      seed,
-    })
+  const pages = await Promise.all(
+    Array.from({ length: SCAN_PAGES }, () =>
+      searchTenor({
+        query: `organisasjonsform.kode:${searchForm}`,
+        antall: SCAN_PAGE_SIZE,
+        includeTenorMetadata: true,
+        seed: Math.floor(Math.random() * 1_000_000),
+      }),
+    ),
+  )
 
+  for (const response of pages) {
     for (const dokument of response?.dokumentListe ?? []) {
       let kildedata: any
       try {
@@ -110,20 +126,24 @@ export async function fetchTestDataForRole(
   // 1. Scan companies and group by the agent firm holding the role.
   const agents = await scanAgentRelationships(searchForm, config.code)
 
-  // 2. Prefer firms with the most clients found.
-  const sortedAgents = [...agents.entries()].sort((a, b) => b[1].size - a[1].size)
-  if (sortedAgents.length === 0) {
+  const allAgents = [...agents.entries()]
+  if (allAgents.length === 0) {
     throw new Error(`No ${roleKey} relationships found in Tenor test data (searched organisasjonsform ${searchForm})`)
   }
 
-  // 3. Pick the first agent whose own organization resolves a daglig leder.
-  for (const [agentOrgnr, clientMap] of sortedAgents) {
+  // 2. Randomize which firm we return so repeated calls vary. Prefer firms that
+  //    have enough clients to satisfy the request, but fall back to all of them.
+  const withEnoughClients = allAgents.filter(([, clients]) => clients.size >= limitedClientCount)
+  const candidates = shuffle(withEnoughClients.length > 0 ? withEnoughClients : allAgents)
+
+  // 3. Pick the first (random) candidate whose organization resolves a daglig leder.
+  for (const [agentOrgnr, clientMap] of candidates) {
     const orgResponse = await searchTenor({ query: `organisasjonsnummer:${agentOrgnr}` })
     const foedselsnummer = hentFoedselsnummerForDagligLeder(orgResponse)
     if (!foedselsnummer) continue
 
     const organisasjonsnavn = hentOrganisasjonsnavn(orgResponse) || undefined
-    const clients = [...clientMap.values()].slice(0, limitedClientCount)
+    const clients = shuffle([...clientMap.values()]).slice(0, limitedClientCount)
 
     return {
       role: roleKey,

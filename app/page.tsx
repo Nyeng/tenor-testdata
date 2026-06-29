@@ -2438,7 +2438,7 @@ export default function SystembrukerForm() {
               disabled={isCreating || (tenorUnavailable && selectedRole !== "manual" && systembrukerType === "agent")}
               className="w-full h-12 text-base font-semibold rounded-md shadow-sm hover:shadow-md transition-all bg-primary hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {isCreating ? "Oppretter..." : "Opprett Systembruker-forespørsel"}
+              {isCreating ? "Oppretter..." : `Opprett Systembruker-forespørsel (${selectedEnvironment})`}
             </Button>
           </div>
         </Card>
